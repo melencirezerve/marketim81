@@ -11,6 +11,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.siparis81.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -26,6 +27,7 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/withNotifeeMavenRepo.js",
       [
         "expo-splash-screen",
         {
@@ -37,6 +39,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "eb45178f-6b43-4526-a934-b40f275a685c"
+      }
+    },
+    "owner": "marketim81"
   }
 }

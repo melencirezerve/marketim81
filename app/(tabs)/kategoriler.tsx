@@ -23,7 +23,9 @@ export default function KategorilerScreen() {
         contentContainerStyle={{ gap: 12, paddingTop: 8, paddingBottom: 24 }}
         renderItem={({ item }) => (
           <Pressable
-            onPress={() => router.push({ pathname: '/kategori/[id]', params: { id: item.id } })}
+            onPress={() =>
+              router.push({ pathname: '/kategori/[id]', params: { id: item.id, from: 'kategoriler' } })
+            }
             className="flex-1 items-center rounded-2xl bg-white py-4 shadow-sm">
             <View className="h-16 w-16 overflow-hidden rounded-2xl">
               <Image source={item.gorsel} style={{ width: '100%', height: '100%' }} resizeMode="cover" />

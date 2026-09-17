@@ -37,7 +37,7 @@ const BANNER_GORSELLERI = [
 
 export default function MarketScreen() {
   const [aramaKelimesi, setAramaKelimesi] = useState('');
-  const { items, addToCart, increase, decrease } = useCart();
+  const { items, addToCart, increase, decrease, unreadNotificationCount } = useCart();
 
   const filtrelenmisUrunler = useMemo(() => {
     return products.filter((urun) =>
@@ -63,8 +63,17 @@ export default function MarketScreen() {
             resizeMode="contain"
           />
 
-          <Pressable className="h-10 w-10 items-center justify-center rounded-full bg-surface">
+          <Pressable
+            onPress={() => router.push('/notification-center')}
+            className="h-10 w-10 items-center justify-center rounded-full bg-surface">
             <Ionicons name="notifications-outline" size={20} color="#1e293b" />
+            {unreadNotificationCount > 0 && (
+              <View className="absolute -right-1 -top-1 min-w-[16px] items-center justify-center rounded-full bg-accent px-1 py-[1px]">
+                <Text className="text-[10px] font-bold text-white">
+                  {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+                </Text>
+              </View>
+            )}
           </Pressable>
         </View>
 

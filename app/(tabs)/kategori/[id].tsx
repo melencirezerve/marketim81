@@ -29,7 +29,7 @@ const KATEGORI_SLOGAN: Record<string, string> = {
 };
 
 export default function KategoriDetayScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
   const [aktifId, setAktifId] = useState(id ?? 'tumu');
   const [aktifAltKategori, setAktifAltKategori] = useState(TUM_ALT_KATEGORILER);
   const [aramaKelimesi, setAramaKelimesi] = useState('');
@@ -69,7 +69,7 @@ export default function KategoriDetayScreen() {
       <View className="bg-white px-5 pb-3 pt-2 shadow-sm">
         <View className="mb-3 flex-row items-center" style={{ gap: 12 }}>
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => router.replace(from === 'kategoriler' ? '/kategoriler' : '/')}
             className="h-10 w-10 items-center justify-center rounded-full bg-surface">
             <Ionicons name="arrow-back" size={20} color="#1e293b" />
           </Pressable>

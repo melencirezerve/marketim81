@@ -1,15 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const menuItems: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress?: () => void }[] = [
+const menuItems: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }[] = [
   { icon: 'receipt-outline', label: 'Siparişlerim', onPress: () => router.push('/orders') },
-  { icon: 'location-outline', label: 'Adreslerim' },
-  { icon: 'card-outline', label: 'Ödeme Yöntemlerim' },
-  { icon: 'notifications-outline', label: 'Bildirimler' },
-  { icon: 'settings-outline', label: 'Ayarlar' },
-  { icon: 'help-circle-outline', label: 'Yardım & Destek' },
+  { icon: 'location-outline', label: 'Adreslerim', onPress: () => router.push('/addresses') },
+  { icon: 'card-outline', label: 'Ödeme Yöntemlerim', onPress: () => router.push('/payment-methods') },
+  { icon: 'notifications-outline', label: 'Bildirimler', onPress: () => router.push('/notifications') },
+  { icon: 'settings-outline', label: 'Ayarlar', onPress: () => router.push('/settings') },
+  { icon: 'help-circle-outline', label: 'Yardım & Destek', onPress: () => router.push('/help') },
 ];
 
 export default function ProfileScreen() {
@@ -26,7 +26,9 @@ export default function ProfileScreen() {
             <Text className="text-lg font-bold text-gray-900">Siparis81 Kullanıcısı</Text>
             <Text className="mt-0.5 text-sm text-gray-400">melenraftingtesisi@gmail.com</Text>
           </View>
-          <Pressable className="h-9 w-9 items-center justify-center rounded-full bg-primary-50">
+          <Pressable
+            onPress={() => Alert.alert('Profili Düzenle', 'Bu özellik yakında eklenecek.')}
+            className="h-9 w-9 items-center justify-center rounded-full bg-primary-50">
             <Ionicons name="create-outline" size={18} color="#1abc6e" />
           </Pressable>
         </View>
@@ -48,7 +50,14 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        <Pressable className="mt-6 flex-row items-center justify-center rounded-2xl bg-white py-4 shadow-sm">
+        <Pressable
+          onPress={() =>
+            Alert.alert('Çıkış Yap', 'Hesabınızdan çıkış yapmak istediğinize emin misiniz?', [
+              { text: 'Vazgeç', style: 'cancel' },
+              { text: 'Çıkış Yap', style: 'destructive', onPress: () => router.navigate('/') },
+            ])
+          }
+          className="mt-6 flex-row items-center justify-center rounded-2xl bg-white py-4 shadow-sm">
           <Ionicons name="log-out-outline" size={20} color="#ef4444" />
           <Text className="ml-2 text-base font-semibold text-red-500">Çıkış Yap</Text>
         </Pressable>
