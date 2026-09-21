@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { Product } from '@/data/products';
+import type { Product } from '@/context/catalog-context';
 import { bildirimIzniIste, telefonBildirimiGoster } from '@/services/push-notifications';
 
 export type CartItem = {

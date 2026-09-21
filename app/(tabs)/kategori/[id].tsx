@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Dimensions, FlatList, Image, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Dimensions, FlatList, Image, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ProductCard } from '@/components/ProductCard';
 import { useCart } from '@/context/cart-context';
-import { categories, products } from '@/data/products';
+import { useCatalog } from '@/context/catalog-context';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 20 * 2 - 12) / 2;
@@ -34,6 +34,7 @@ export default function KategoriDetayScreen() {
   const [aktifAltKategori, setAktifAltKategori] = useState(TUM_ALT_KATEGORILER);
   const [aramaKelimesi, setAramaKelimesi] = useState('');
   const { items, addToCart, increase, decrease } = useCart();
+  const { categories, products, loading, error, refresh } = useCatalog();
 
   const aktifKategori = categories.find((k) => k.id === aktifId);
 
@@ -47,22 +48,41 @@ export default function KategoriDetayScreen() {
 
   const altKategoriler = useMemo(() => {
     if (aktifId === 'tumu') return [];
-    const kategoriUrunleri = products.filter((urun) => urun.kategori === aktifKategori?.ad);
+    const kategoriUrunleri = products.filter((urun) => urun.categoryIds.includes(aktifId));
     const benzersiz = Array.from(new Set(kategoriUrunleri.map((urun) => urun.altKategori)));
     return [TUM_ALT_KATEGORILER, ...benzersiz];
-  }, [aktifId, aktifKategori]);
+  }, [aktifId, products]);
 
   const urunler = useMemo(() => {
     return products.filter((urun) => {
-      const kategoriUyum = aktifId === 'tumu' || urun.kategori === aktifKategori?.ad;
+      const kategoriUyum = aktifId === 'tumu' || urun.categoryIds.includes(aktifId);
       const altKategoriUyum =
         aktifAltKategori === TUM_ALT_KATEGORILER || urun.altKategori === aktifAltKategori;
       const isimUyum = urun.ad.toLocaleLowerCase('tr').includes(aramaKelimesi.toLocaleLowerCase('tr'));
       return kategoriUyum && altKategoriUyum && isimUyum;
     });
-  }, [aktifId, aktifKategori, aktifAltKategori, aramaKelimesi]);
+  }, [aktifId, products, aktifAltKategori, aramaKelimesi]);
 
   const miktarBul = (productId: string) => items.find((item) => item.product.id === productId)?.miktar ?? 0;
+
+  if (loading) {
+    return (
+      <SafeAreaView className="flex-1 items-center justify-center bg-surface" edges={['top']}>
+        <ActivityIndicator size="large" color="#10995a" />
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView className="flex-1 items-center justify-center bg-surface px-10" edges={['top']}>
+        <Text className="text-center text-sm text-gray-500">{error}</Text>
+        <Pressable onPress={refresh} className="mt-4 rounded-xl bg-primary-500 px-4 py-2">
+          <Text className="text-xs font-bold text-white">Tekrar Dene</Text>
+        </Pressable>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-surface" edges={['top']}>
@@ -159,7 +179,7 @@ export default function KategoriDetayScreen() {
                 style={{ width: BANNER_WIDTH, height: BANNER_WIDTH / 2.6 }}
                 className="overflow-hidden rounded-3xl">
                 <Image
-                  source={aktifKategori.gorsel}
+                  source={{ uri: aktifKategori.gorsel }}
                   style={{ width: '100%', height: '100%' }}
                   resizeMode="cover"
                 />

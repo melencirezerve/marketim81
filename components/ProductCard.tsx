@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image, Pressable, Text, View } from 'react-native';
 
-import type { Product } from '@/data/products';
+import type { Product } from '@/context/catalog-context';
 
 export function ProductCard({
   product,
@@ -31,7 +31,7 @@ export function ProductCard({
         )}
       </View>
 
-      <Text className="text-[11px] font-medium text-gray-400">{product.kategori}</Text>
+      <Text className="text-[11px] font-medium text-gray-400">{product.altKategori}</Text>
       <Text className="mt-0.5 h-10 text-sm font-bold text-gray-900" numberOfLines={2}>
         {product.ad}
       </Text>

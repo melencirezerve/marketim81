@@ -87,7 +87,7 @@ function CartRow({
         <Text className="text-base font-bold text-gray-900" numberOfLines={1}>
           {product.ad}
         </Text>
-        <Text className="mt-0.5 text-xs text-gray-400">{product.kategori}</Text>
+        <Text className="mt-0.5 text-xs text-gray-400">{product.altKategori}</Text>
         <Text className="mt-1 text-sm font-semibold text-primary-600">{product.fiyat} ₺</Text>
       </View>
 

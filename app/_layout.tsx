@@ -6,6 +6,7 @@ import 'react-native-reanimated';
 import '../global.css';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import { CatalogProvider } from '@/context/catalog-context';
 import { CartProvider } from '@/context/cart-context';
 
 export {
@@ -48,11 +49,13 @@ function RootLayoutNav() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <CartProvider>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        </Stack>
-      </CartProvider>
+      <CatalogProvider>
+        <CartProvider>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          </Stack>
+        </CartProvider>
+      </CatalogProvider>
     </ThemeProvider>
   );
 }
