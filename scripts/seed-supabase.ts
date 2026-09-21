@@ -4,7 +4,20 @@
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { categories, products } from '../data/products';
+import Module from 'node:module';
+
+// data/products.ts bazı görselleri require('../assets/images/x.png') ile içe aktarıyor
+// (Metro'ya özel bir davranış). Düz Node.js bunu JS gibi parse etmeye çalışıp patlar,
+// bu yüzden .png/.jpg uzantılarını dosya yolunu döndüren bir stub ile karşılıyoruz.
+for (const ext of ['.png', '.jpg', '.jpeg']) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (Module as any)._extensions[ext] = (mod: any, filename: string) => {
+    mod.exports = filename;
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { categories, products } = require('../data/products') as typeof import('../data/products');
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -56,16 +69,27 @@ async function main() {
       fiyat: p.fiyat,
       stok: p.stok,
       barkod: p.barkod,
-      category_id,
       alt_kategori: p.altKategori,
       icon: p.icon,
       gorsel_url: p.gorsel,
       aktif: true,
+      _category_id: category_id, // sadece bu script içinde kullanılır, insert edilmez
     };
   });
-  const { error: prodErr } = await supabase.from('products').insert(productRows);
+  const { data: insertedProducts, error: prodErr } = await supabase
+    .from('products')
+    .insert(productRows.map(({ _category_id, ...row }) => row))
+    .select('id, ad');
   if (prodErr) throw prodErr;
-  console.log(`${productRows.length} ürün eklendi.`);
+  console.log(`${insertedProducts.length} ürün eklendi.`);
+
+  const linkRows = insertedProducts.map((inserted, index) => ({
+    product_id: inserted.id,
+    category_id: productRows[index]._category_id,
+  }));
+  const { error: linkErr } = await supabase.from('product_categories').insert(linkRows);
+  if (linkErr) throw linkErr;
+  console.log(`${linkRows.length} ürün-kategori ilişkisi eklendi.`);
 }
 
 main()

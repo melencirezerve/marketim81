@@ -6,16 +6,16 @@ import { supabase } from '@/lib/supabase';
 import { ImageUploader } from './ImageUploader';
 import type { Category, Product } from '@/lib/types';
 
-type Props = { initial?: Product; categories: Category[] };
+type Props = { initial?: Product; initialCategoryIds?: string[]; categories: Category[] };
 
-export function ProductForm({ initial, categories }: Props) {
+export function ProductForm({ initial, initialCategoryIds, categories }: Props) {
   const router = useRouter();
   const isEdit = Boolean(initial);
   const [ad, setAd] = useState(initial?.ad ?? '');
   const [fiyat, setFiyat] = useState(Number(initial?.fiyat ?? 0));
   const [stok, setStok] = useState(initial?.stok ?? 0);
   const [barkod, setBarkod] = useState(initial?.barkod ?? '');
-  const [categoryId, setCategoryId] = useState(initial?.category_id ?? categories[0]?.id ?? '');
+  const [categoryIds, setCategoryIds] = useState<string[]>(initialCategoryIds ?? []);
   const [altKategori, setAltKategori] = useState(initial?.alt_kategori ?? '');
   const [icon, setIcon] = useState(initial?.icon ?? '');
   const [aktif, setAktif] = useState(initial?.aktif ?? true);
@@ -25,40 +25,63 @@ export function ProductForm({ initial, categories }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!categoryId) return;
     supabase
       .from('products')
       .select('alt_kategori')
-      .eq('category_id', categoryId)
       .then(({ data }) => {
         const unique = Array.from(
           new Set((data ?? []).map((r: { alt_kategori: string }) => r.alt_kategori).filter(Boolean))
         );
         setAltKategoriSecenekleri(unique);
       });
-  }, [categoryId]);
+  }, []);
+
+  const toggleCategory = (id: string) => {
+    setCategoryIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError(null);
     try {
-      if (!categoryId) throw new Error('Kategori seçilmedi.');
+      if (categoryIds.length === 0) throw new Error('En az bir kategori seçmelisiniz.');
       const row = {
         ad,
         fiyat,
         stok,
         barkod: barkod || null,
-        category_id: categoryId,
         alt_kategori: altKategori,
         icon,
         gorsel_url: gorselUrl,
         aktif,
       };
-      const { error: upsertError } = isEdit
-        ? await supabase.from('products').update(row).eq('id', initial!.id)
-        : await supabase.from('products').insert(row);
-      if (upsertError) throw upsertError;
+
+      let productId: string;
+      if (isEdit) {
+        productId = initial!.id;
+        const { error: updateError } = await supabase.from('products').update(row).eq('id', productId);
+        if (updateError) throw updateError;
+        const { error: deleteLinksError } = await supabase
+          .from('product_categories')
+          .delete()
+          .eq('product_id', productId);
+        if (deleteLinksError) throw deleteLinksError;
+      } else {
+        const { data: inserted, error: insertError } = await supabase
+          .from('products')
+          .insert(row)
+          .select('id')
+          .single();
+        if (insertError) throw insertError;
+        productId = inserted.id;
+      }
+
+      const { error: linkError } = await supabase
+        .from('product_categories')
+        .insert(categoryIds.map((category_id) => ({ product_id: productId, category_id })));
+      if (linkError) throw linkError;
+
       router.push('/products');
       router.refresh();
     } catch (e) {
@@ -113,20 +136,21 @@ export function ProductForm({ initial, categories }: Props) {
         />
       </div>
       <div>
-        <label className="mb-1 block text-sm font-medium text-gray-700">Kategori</label>
-        <select
-          value={categoryId}
-          onChange={(e) => {
-            setCategoryId(e.target.value);
-            setAltKategori('');
-          }}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+        <label className="mb-1 block text-sm font-medium text-gray-700">
+          Kategoriler <span className="font-normal text-gray-400">(en az bir tane)</span>
+        </label>
+        <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-300 p-3">
           {categories.map((c) => (
-            <option key={c.id} value={c.id}>
+            <label key={c.id} className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={categoryIds.includes(c.id)}
+                onChange={() => toggleCategory(c.id)}
+              />
               {c.ad}
-            </option>
+            </label>
           ))}
-        </select>
+        </div>
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium text-gray-700">Alt kategori</label>

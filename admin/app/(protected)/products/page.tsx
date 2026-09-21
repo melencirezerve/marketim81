@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import type { Category, ProductWithCategory } from '@/lib/types';
+import type { Category, ProductWithCategories } from '@/lib/types';
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<ProductWithCategory[]>([]);
+  const [products, setProducts] = useState<ProductWithCategories[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -14,32 +14,37 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
-    setLoading(true);
-    setError(null);
     const [{ data: prodData, error: prodErr }, { data: catData, error: catErr }] = await Promise.all([
-      supabase.from('products').select('*, categories(ad)').order('created_at', { ascending: false }),
+      supabase
+        .from('products')
+        .select('*, product_categories(category_id, categories(ad))')
+        .order('created_at', { ascending: false }),
       supabase.from('categories').select('*').order('sira', { ascending: true }),
     ]);
     if (prodErr) setError(prodErr.message);
-    else setProducts((prodData as ProductWithCategory[]) ?? []);
+    else setProducts((prodData as ProductWithCategories[]) ?? []);
     if (catErr) setError(catErr.message);
     else setCategories((catData as Category[]) ?? []);
     setLoading(false);
   };
 
   useEffect(() => {
+    // load() only sets state after its internal await, but the linter can't see through
+    // the indirection — safe here since deps are empty (mount-only fetch).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, []);
 
   const filtered = useMemo(() => {
     return products.filter((p) => {
       const matchesSearch = p.ad.toLocaleLowerCase('tr').includes(search.toLocaleLowerCase('tr'));
-      const matchesCategory = !categoryFilter || p.category_id === categoryFilter;
+      const matchesCategory =
+        !categoryFilter || p.product_categories.some((pc) => pc.category_id === categoryFilter);
       return matchesSearch && matchesCategory;
     });
   }, [products, search, categoryFilter]);
 
-  const toggleAktif = async (p: ProductWithCategory) => {
+  const toggleAktif = async (p: ProductWithCategories) => {
     const { error: updateError } = await supabase.from('products').update({ aktif: !p.aktif }).eq('id', p.id);
     if (updateError) {
       setError(updateError.message);
@@ -48,7 +53,7 @@ export default function ProductsPage() {
     setProducts((prev) => prev.map((x) => (x.id === p.id ? { ...x, aktif: !x.aktif } : x)));
   };
 
-  const handleDelete = async (p: ProductWithCategory) => {
+  const handleDelete = async (p: ProductWithCategories) => {
     if (!confirm(`"${p.ad}" ürününü silmek istediğinize emin misiniz?`)) return;
     const { error: deleteError } = await supabase.from('products').delete().eq('id', p.id);
     if (deleteError) {
@@ -98,7 +103,7 @@ export default function ProductsPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-2 text-left font-semibold text-gray-600">Ürün</th>
-                <th className="px-4 py-2 text-left font-semibold text-gray-600">Kategori</th>
+                <th className="px-4 py-2 text-left font-semibold text-gray-600">Kategoriler</th>
                 <th className="px-4 py-2 text-left font-semibold text-gray-600">Fiyat</th>
                 <th className="px-4 py-2 text-left font-semibold text-gray-600">Stok</th>
                 <th className="px-4 py-2 text-left font-semibold text-gray-600">Durum</th>
@@ -113,7 +118,18 @@ export default function ProductsPage() {
                     <img src={p.gorsel_url} alt="" className="h-8 w-8 rounded object-cover" />
                     {p.ad}
                   </td>
-                  <td className="px-4 py-2 text-gray-600">{p.categories?.ad ?? '-'}</td>
+                  <td className="px-4 py-2 text-gray-600">
+                    <div className="flex flex-wrap gap-1">
+                      {p.product_categories.map((pc) => (
+                        <span
+                          key={pc.category_id}
+                          className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                          {pc.categories?.ad ?? pc.category_id}
+                        </span>
+                      ))}
+                      {p.product_categories.length === 0 && <span className="text-gray-300">-</span>}
+                    </div>
+                  </td>
                   <td className="px-4 py-2 text-gray-600">{Number(p.fiyat).toFixed(2)} TL</td>
                   <td className="px-4 py-2 text-gray-600">{p.stok}</td>
                   <td className="px-4 py-2">

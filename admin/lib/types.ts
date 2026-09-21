@@ -14,7 +14,6 @@ export type Product = {
   fiyat: number;
   stok: number;
   barkod: string | null;
-  category_id: string;
   alt_kategori: string;
   icon: string;
   gorsel_url: string;
@@ -23,4 +22,6 @@ export type Product = {
   updated_at?: string;
 };
 
-export type ProductWithCategory = Product & { categories: { ad: string } | null };
+export type ProductWithCategories = Product & {
+  product_categories: { category_id: string; categories: { ad: string } | null }[];
+};

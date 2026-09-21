@@ -20,7 +20,6 @@ create table public.products (
   fiyat         numeric(10,2) not null check (fiyat >= 0),
   stok          integer not null default 0 check (stok >= 0),
   barkod        text unique,
-  category_id   text not null references public.categories(id) on delete restrict,
   alt_kategori  text not null default '',
   icon          text not null default '',
   gorsel_url    text not null,
@@ -28,16 +27,23 @@ create table public.products (
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
-create index products_category_id_idx on public.products (category_id);
 create index products_aktif_idx on public.products (aktif);
 
+-- Bir ürün birden fazla kategoriye ait olabilir (many-to-many)
+create table public.product_categories (
+  product_id   uuid not null references public.products(id) on delete cascade,
+  category_id  text not null references public.categories(id) on delete restrict,
+  primary key (product_id, category_id)
+);
+create index product_categories_category_id_idx on public.product_categories (category_id);
+
 create or replace function public.set_updated_at()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql as $body$
 begin
   new.updated_at = now();
   return new;
 end;
-$$;
+$body$;
 
 create trigger categories_set_updated_at before update on public.categories
   for each row execute function public.set_updated_at();
@@ -46,6 +52,7 @@ create trigger products_set_updated_at before update on public.products
 
 alter table public.categories enable row level security;
 alter table public.products enable row level security;
+alter table public.product_categories enable row level security;
 
 create policy categories_public_select on public.categories for select to anon, authenticated using (true);
 create policy categories_admin_insert on public.categories for insert to authenticated with check (true);
@@ -58,3 +65,7 @@ create policy products_admin_select_all on public.products for select to authent
 create policy products_admin_insert on public.products for insert to authenticated with check (true);
 create policy products_admin_update on public.products for update to authenticated using (true) with check (true);
 create policy products_admin_delete on public.products for delete to authenticated using (true);
+
+create policy product_categories_public_select on public.product_categories for select to anon, authenticated using (true);
+create policy product_categories_admin_insert on public.product_categories for insert to authenticated with check (true);
+create policy product_categories_admin_delete on public.product_categories for delete to authenticated using (true);

@@ -11,7 +11,6 @@ export default function CategoriesPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
-    setLoading(true);
     const { data, error: err } = await supabase.from('categories').select('*').order('sira', { ascending: true });
     if (err) setError(err.message);
     else setCategories((data as Category[]) ?? []);
@@ -19,6 +18,9 @@ export default function CategoriesPage() {
   };
 
   useEffect(() => {
+    // load() only sets state after its internal await, but the linter can't see through
+    // the indirection — safe here since deps are empty (mount-only fetch).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, []);
 
