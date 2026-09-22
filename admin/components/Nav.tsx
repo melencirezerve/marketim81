@@ -23,6 +23,9 @@ export function Nav() {
       <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
         <span className="text-lg font-extrabold text-gray-900">Siparis81 Admin</span>
         <div className="flex items-center gap-2">
+          <Link href="/orders" className={linkClass('/orders')}>
+            Siparişler
+          </Link>
           <Link href="/products" className={linkClass('/products')}>
             Ürünler
           </Link>

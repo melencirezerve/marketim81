@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useAuth } from '@/context/auth-context';
 import type { Product } from '@/context/catalog-context';
+import { supabase } from '@/lib/supabase';
 import { bildirimIzniIste, telefonBildirimiGoster } from '@/services/push-notifications';
 
 export type CartItem = {
@@ -9,10 +11,21 @@ export type CartItem = {
 
 export type OrderStatus = 'alindi' | 'hazirlaniyor' | 'yolda' | 'kapinda';
 
+// Sipariş geçmişindeki ürün bilgisi sipariş anında "dondurulur" (snapshot):
+// ürünün adı/fiyatı sonradan değişse veya ürün silinse bile geçmiş sipariş
+// aynı kalır.
+export type OrderItem = {
+  productId: string;
+  ad: string;
+  fiyat: number;
+  gorsel: string;
+  miktar: number;
+};
+
 export type Order = {
   id: string;
   tarih: string;
-  items: CartItem[];
+  items: OrderItem[];
   toplam: number;
   durum: OrderStatus;
 };
@@ -67,7 +80,7 @@ type CartContextValue = {
   totalCount: number;
   totalPrice: number;
   orders: Order[];
-  placeOrder: () => string;
+  placeOrder: (teslimatAdresi: string) => Promise<string>;
   notifications: AppNotification[];
   unreadNotificationCount: number;
   markNotificationRead: (id: string) => void;
@@ -79,6 +92,7 @@ type CartContextValue = {
 const CartContext = createContext<CartContextValue | undefined>(undefined);
 
 export function CartProvider({ children }: { children: ReactNode }) {
+  const { user, profile } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -101,6 +115,36 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     bildirimIzniIste().catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setOrders([]);
+      return;
+    }
+    supabase
+      .from('orders')
+      .select('id, durum, toplam, created_at, order_items(product_id, ad, fiyat, gorsel_url, miktar)')
+      .eq('customer_id', user.id)
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (error || !data) return;
+        setOrders(
+          data.map((o: any) => ({
+            id: o.id,
+            tarih: o.created_at,
+            durum: o.durum,
+            toplam: Number(o.toplam),
+            items: (o.order_items ?? []).map((it: any) => ({
+              productId: it.product_id,
+              ad: it.ad,
+              fiyat: Number(it.fiyat),
+              gorsel: it.gorsel_url,
+              miktar: it.miktar,
+            })),
+          }))
+        );
+      });
+  }, [user]);
 
   const setNotificationPreference = (key: NotificationPreferenceKey, value: boolean) => {
     setNotificationPreferencesState((prev) => ({ ...prev, [key]: value }));
@@ -164,10 +208,48 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [items]
   );
 
-  const placeOrder = () => {
+  const placeOrder = async (teslimatAdresi: string) => {
+    if (!user) throw new Error('Sipariş vermek için giriş yapmalısınız.');
+
     const id = `S81-${Math.floor(100000 + Math.random() * 900000)}`;
-    const order: Order = { id, tarih: new Date().toISOString(), items, toplam: totalPrice, durum: 'alindi' };
+    const siparisKalemleri: OrderItem[] = items.map((item) => ({
+      productId: item.product.id,
+      ad: item.product.ad,
+      fiyat: item.product.fiyat,
+      gorsel: item.product.gorsel,
+      miktar: item.miktar,
+    }));
+    const order: Order = {
+      id,
+      tarih: new Date().toISOString(),
+      items: siparisKalemleri,
+      toplam: totalPrice,
+      durum: 'alindi',
+    };
     const resimUrl = items[0]?.product.gorsel;
+
+    const { error } = await supabase.from('orders').insert({
+      id,
+      customer_id: user.id,
+      musteri_adi: profile?.ad ?? null,
+      musteri_telefon: profile?.telefon ?? null,
+      musteri_email: user.email ?? null,
+      teslimat_adresi: teslimatAdresi,
+      durum: 'alindi',
+      toplam: totalPrice,
+    });
+    if (error) throw new Error(error.message);
+    await supabase.from('order_items').insert(
+      siparisKalemleri.map((item) => ({
+        order_id: id,
+        product_id: item.productId,
+        ad: item.ad,
+        fiyat: item.fiyat,
+        gorsel_url: item.gorsel,
+        miktar: item.miktar,
+      }))
+    );
+
     setOrders((prev) => [order, ...prev]);
     setItems([]);
     bildirimEkle(id, 'Siparişin Alındı', `${id} numaralı siparişiniz alındı, hazırlanmaya başlanacak.`, resimUrl);
@@ -178,6 +260,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const zamanlayici = setTimeout(() => {
         setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, durum: asama.durum } : o)));
         bildirimEkle(id, asama.baslik, asama.mesaj(id), resimUrl);
+        supabase.from('orders').update({ durum: asama.durum }).eq('id', id).then(() => {});
       }, toplamGecikme);
       zamanlayicilar.current.push(zamanlayici);
     });

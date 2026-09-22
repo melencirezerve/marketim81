@@ -1,16 +1,53 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { FlatList, Image, Pressable, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Image, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAuth } from '@/context/auth-context';
 import { useCart, type CartItem } from '@/context/cart-context';
+import { supabase } from '@/lib/supabase';
 
 export default function CartScreen() {
+  const { user } = useAuth();
   const { items, increase, decrease, removeFromCart, totalPrice, totalCount, placeOrder } = useCart();
+  const [gonderiliyor, setGonderiliyor] = useState(false);
 
-  const handleSiparisTamamla = () => {
-    const orderId = placeOrder();
-    router.push({ pathname: '/order-confirmation', params: { orderId } });
+  const handleSiparisTamamla = async () => {
+    if (!user) {
+      router.push('/auth');
+      return;
+    }
+
+    setGonderiliyor(true);
+    const { data: adres } = await supabase
+      .from('addresses')
+      .select('*')
+      .order('varsayilan', { ascending: false })
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (!adres) {
+      setGonderiliyor(false);
+      Alert.alert('Adres gerekli', 'Sipariş verebilmek için önce bir teslimat adresi eklemelisiniz.', [
+        { text: 'Vazgeç', style: 'cancel' },
+        { text: 'Adres Ekle', onPress: () => router.push('/addresses') },
+      ]);
+      return;
+    }
+
+    const daire = adres.daire_no ? ` D:${adres.daire_no}` : '';
+    const teslimatAdresi = `${adres.sokak} No:${adres.bina_no}${daire}, ${adres.mahalle} Mah., Cumayeri/Düzce`;
+
+    try {
+      const orderId = await placeOrder(teslimatAdresi);
+      router.push({ pathname: '/order-confirmation', params: { orderId } });
+    } catch (e) {
+      Alert.alert('Sipariş oluşturulamadı', e instanceof Error ? e.message : 'Bilinmeyen bir hata oluştu.');
+    } finally {
+      setGonderiliyor(false);
+    }
   };
 
   if (items.length === 0) {
@@ -56,8 +93,13 @@ export default function CartScreen() {
         </View>
         <Pressable
           onPress={handleSiparisTamamla}
+          disabled={gonderiliyor}
           className="mt-4 items-center rounded-2xl bg-primary-500 py-4">
-          <Text className="text-base font-bold text-white">Siparişi Tamamla</Text>
+          {gonderiliyor ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <Text className="text-base font-bold text-white">Siparişi Tamamla</Text>
+          )}
         </Pressable>
       </View>
     </SafeAreaView>

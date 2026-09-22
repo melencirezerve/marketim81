@@ -72,6 +72,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen name="kategori/[id]" options={{ href: null }} />
+      <Tabs.Screen name="auth" options={{ href: null }} />
       <Tabs.Screen name="orders" options={{ href: null }} />
       <Tabs.Screen name="order-confirmation" options={{ href: null }} />
       <Tabs.Screen name="addresses" options={{ href: null }} />

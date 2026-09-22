@@ -80,9 +80,9 @@ function OrderCard({ order }: { order: Order }) {
 
       <View className="mt-3 flex-row flex-wrap gap-2">
         {order.items.slice(0, 4).map((item) => (
-          <View key={item.product.id} className="rounded-full bg-primary-50 px-2.5 py-1">
+          <View key={item.productId} className="rounded-full bg-primary-50 px-2.5 py-1">
             <Text className="text-xs font-medium text-primary-700" numberOfLines={1}>
-              {item.product.ad} x{item.miktar}
+              {item.ad} x{item.miktar}
             </Text>
           </View>
         ))}
