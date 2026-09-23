@@ -29,6 +29,8 @@ export type Order = {
   items: OrderItem[];
   araToplam: number;
   teslimatUcreti: number;
+  kampanyaAdi: string | null;
+  indirim: number;
   toplam: number;
   durum: OrderStatus;
   odemeYontemi: OdemeYontemi;
@@ -81,6 +83,8 @@ const siparisSatiriniCevir = (o: any): Order => ({
   durum: o.durum,
   araToplam: Number(o.ara_toplam ?? o.toplam),
   teslimatUcreti: Number(o.teslimat_ucreti ?? 0),
+  kampanyaAdi: o.kampanya_adi ?? null,
+  indirim: Number(o.indirim_tutari ?? 0),
   toplam: Number(o.toplam),
   odemeYontemi: o.odeme_yontemi,
   teslimatAdresi: o.teslimat_adresi,
@@ -142,7 +146,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase
       .from('orders')
       .select(
-        'id, durum, ara_toplam, teslimat_ucreti, toplam, odeme_yontemi, teslimat_adresi, created_at, order_items(product_id, ad, fiyat, gorsel_url, miktar)'
+        'id, durum, ara_toplam, teslimat_ucreti, kampanya_adi, indirim_tutari, toplam, odeme_yontemi, teslimat_adresi, created_at, order_items(product_id, ad, fiyat, gorsel_url, miktar)'
       )
       .eq('customer_id', userId)
       .order('created_at', { ascending: false });

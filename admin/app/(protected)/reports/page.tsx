@@ -21,6 +21,8 @@ type Ozet = {
   fire_maliyet_eksik: number;
   fire_maliyet_tahmini: number;
   genel_gider: number;
+  kampanya_indirimi: number;
+  kampanya_indirimi_brut: number;
   net_kar: number;
   maliyet_eksik_kalem: number;
   maliyet_tahmini_kalem: number;
@@ -47,6 +49,7 @@ type Rapor = {
   urunler: UrunSatiri[];
   gunluk: GunSatiri[];
   gider_kategorileri: { kategori: string; tutar: number }[];
+  kampanyalar: { ad: string | null; siparis: number; indirim: number }[];
   fire_sebepleri: { sebep: string; adet: number; tutar: number }[];
 };
 
@@ -263,6 +266,7 @@ export default function ReportsPage() {
               <Satir ad="Ürün maliyeti" tutar={-o.maliyet} />
               <Satir ad="Brüt kâr" tutar={o.brut_kar} kalin />
               <Satir ad="Teslimat ücreti geliri" tutar={o.teslimat_net} />
+              <Satir ad="Kampanya indirimleri" tutar={-o.kampanya_indirimi} />
               <Satir ad="Kurye" tutar={-o.kurye} />
               <Satir ad="POS komisyonu" tutar={-o.pos} />
               <Satir ad="Ambalaj" tutar={-o.ambalaj} />
@@ -287,6 +291,15 @@ export default function ReportsPage() {
                   Nakit tutarı kuryeden teslim alınan parayla, kart tutarı POS gün sonu raporuyla karşılaştırın.
                 </p>
               </div>
+
+              {rapor.kampanyalar.length > 0 && (
+                <div className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h2 className="mb-3 text-sm font-bold text-gray-700">Kampanyalar (KDV dahil indirim)</h2>
+                  {rapor.kampanyalar.map((k) => (
+                    <Satir key={k.ad ?? '-'} ad={`${k.ad ?? 'Kampanya'} (${k.siparis} sipariş)`} tutar={k.indirim} />
+                  ))}
+                </div>
+              )}
 
               {rapor.gider_kategorileri.length > 0 && (
                 <div className="rounded-xl border border-gray-200 bg-white p-4">

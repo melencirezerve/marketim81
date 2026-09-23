@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCart, type Order } from '@/context/cart-context';
 import { odemeYontemiLabel } from '@/lib/odeme-yontemleri';
+import { tl } from '@/lib/para';
 import { DURUM_META, tarihSaat } from '@/lib/siparis-durumu';
 
 export default function OrdersScreen() {
@@ -88,7 +89,7 @@ function OrderCard({ order }: { order: Order }) {
         <Text className="text-xs text-gray-400">
           {urunSayisi} ürün · {odemeYontemiLabel(order.odemeYontemi)}
         </Text>
-        <Text className="text-base font-extrabold text-primary-600">{order.toplam} ₺</Text>
+        <Text className="text-base font-extrabold text-primary-600">{tl(order.toplam)}</Text>
       </View>
     </Pressable>
   );

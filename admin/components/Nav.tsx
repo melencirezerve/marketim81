@@ -32,6 +32,9 @@ export function Nav() {
           <Link href="/reports" className={linkClass('/reports')}>
             Kârlılık
           </Link>
+          <Link href="/campaigns" className={linkClass('/campaigns')}>
+            Kampanyalar
+          </Link>
           <Link href="/expenses" className={linkClass('/expenses')}>
             Giderler
           </Link>

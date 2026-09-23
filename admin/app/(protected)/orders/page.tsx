@@ -203,7 +203,16 @@ export default function OrdersPage() {
                       className={
                         iptalEdilenler.includes(o.id) ? 'bg-red-50' : yeniSiparisler.includes(o.id) ? 'bg-emerald-50' : ''
                       }>
-                      <td className="px-4 py-2 font-medium text-gray-900">{o.id}</td>
+                      <td className="px-4 py-2 font-medium text-gray-900">
+                        {o.id}
+                        {Number(o.indirim_tutari) > 0 && (
+                          <div
+                            title={`${o.kampanya_adi ?? 'Kampanya'}: −${Number(o.indirim_tutari).toFixed(2)} TL`}
+                            className="mt-0.5 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                            🎉 {o.kampanya_adi ?? 'Kampanya'}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-2 text-gray-600">
                         <div>{o.musteri_adi || <span className="text-gray-300">-</span>}</div>
                         {o.musteri_email && (
@@ -277,6 +286,9 @@ export default function OrdersPage() {
                           <div className="mt-3 flex justify-end gap-6 border-t border-gray-200 pt-2 text-sm text-gray-600">
                             <span>Ara toplam: {Number(o.ara_toplam).toFixed(2)} TL</span>
                             <span>Teslimat: {Number(o.teslimat_ucreti).toFixed(2)} TL</span>
+                            {Number(o.indirim_tutari) > 0 && (
+                              <span className="text-amber-700">İndirim: −{Number(o.indirim_tutari).toFixed(2)} TL</span>
+                            )}
                             <span className="font-semibold text-gray-800">Toplam: {Number(o.toplam).toFixed(2)} TL</span>
                           </div>
                         </td>

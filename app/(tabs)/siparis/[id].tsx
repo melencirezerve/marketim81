@@ -6,12 +6,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCart, type OrderStatus } from '@/context/cart-context';
 import { odemeYontemiLabel } from '@/lib/odeme-yontemleri';
+import { tl } from '@/lib/para';
 import { DURUM_META, tarihSaat } from '@/lib/siparis-durumu';
 import { supabase } from '@/lib/supabase';
 
 const ADIMLAR: OrderStatus[] = ['alindi', 'hazirlaniyor', 'yolda', 'kapinda'];
 
-const tl = (n: number) => `${n.toFixed(2).replace(/\.00$/, '')} ₺`;
 
 export default function SiparisDetayScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -167,6 +167,12 @@ export default function SiparisDetayScreen() {
                 {order.teslimatUcreti === 0 ? 'Ücretsiz' : tl(order.teslimatUcreti)}
               </Text>
             </View>
+            {order.indirim > 0 && (
+              <View className="flex-row justify-between">
+                <Text className="text-sm text-primary-600">{order.kampanyaAdi ?? 'Kampanya indirimi'}</Text>
+                <Text className="text-sm text-primary-600">−{tl(order.indirim)}</Text>
+              </View>
+            )}
             <View className="flex-row justify-between">
               <Text className="text-base font-bold text-gray-800">Toplam</Text>
               <Text className="text-base font-extrabold text-primary-600">{tl(order.toplam)}</Text>

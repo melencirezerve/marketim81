@@ -62,6 +62,8 @@ export type OrderWithItems = {
   durum: OrderStatus;
   ara_toplam: number;
   teslimat_ucreti: number;
+  kampanya_adi: string | null;
+  indirim_tutari: number;
   toplam: number;
   toplandi_at: string | null;
   created_at: string;

@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCart } from '@/context/cart-context';
 import { odemeYontemiLabel } from '@/lib/odeme-yontemleri';
+import { tl } from '@/lib/para';
 
 export default function OrderConfirmationScreen() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
@@ -45,7 +46,7 @@ export default function OrderConfirmationScreen() {
         )}
         <View className="mt-3 flex-row items-center justify-between border-t border-surface pt-3">
           <Text className="text-sm text-gray-500">Toplam Tutar</Text>
-          <Text className="text-lg font-extrabold text-primary-600">{order?.toplam ?? 0} ₺</Text>
+          <Text className="text-lg font-extrabold text-primary-600">{tl(order?.toplam ?? 0)}</Text>
         </View>
       </View>
 

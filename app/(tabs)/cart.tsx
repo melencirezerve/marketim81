@@ -8,11 +8,18 @@ import { useAuth } from '@/context/auth-context';
 import { useCart, type CartItem } from '@/context/cart-context';
 import { useCatalog } from '@/context/catalog-context';
 import { ODEME_YONTEMLERI, type OdemeYontemi } from '@/lib/odeme-yontemleri';
+import { tl } from '@/lib/para';
 import { supabase } from '@/lib/supabase';
 
 type Adres = { id: string; baslik: string; sokak: string; bina_no: string; daire_no: string; mahalle: string };
 
-const tl = (n: number) => `${n.toFixed(2).replace(/\.00$/, '')} ₺`;
+// kampanya_onizleme(): uygulanacak kampanya ve "X ₺ daha ekleyin" fırsatı. Asıl
+// hesap sipariş anında sunucuda yapılır; bu yalnızca gösterim.
+type KampanyaOnizleme = {
+  kampanya: { id: string; ad: string; tur: string; indirim: number } | null;
+  firsat: { ad: string; eksik: number } | null;
+};
+
 
 export default function CartScreen() {
   const { user, profile } = useAuth();
@@ -21,6 +28,7 @@ export default function CartScreen() {
   const [gonderiliyor, setGonderiliyor] = useState(false);
   const [odemeYontemi, setOdemeYontemi] = useState<OdemeYontemi>('kapida_nakit');
   const [adres, setAdres] = useState<Adres | null>(null);
+  const [onizleme, setOnizleme] = useState<KampanyaOnizleme | null>(null);
 
   // Profildeki varsayılan ödeme yöntemi yüklenince sepette ön-seçili gelsin.
   useEffect(() => {
@@ -45,12 +53,39 @@ export default function CartScreen() {
     }, [user])
   );
 
+  // Sepet ya da adres değişince kampanya önizlemesini yenile (hızlı +/- basışlarında tek istek).
+  const kalemAnahtari = items.map((i) => `${i.product.id}:${i.miktar}`).join(',');
+  useEffect(() => {
+    if (!user || items.length === 0) {
+      setOnizleme(null);
+      return;
+    }
+    let iptal = false;
+    const zamanlayici = setTimeout(() => {
+      supabase
+        .rpc('kampanya_onizleme', {
+          p_kalemler: items.map((i) => ({ product_id: i.product.id, miktar: i.miktar })),
+          p_adres_id: adres?.id ?? null,
+        })
+        .then(({ data }) => {
+          if (!iptal) setOnizleme((data as KampanyaOnizleme) ?? null);
+        });
+    }, 400);
+    return () => {
+      iptal = true;
+      clearTimeout(zamanlayici);
+    };
+    // items kalemAnahtari ile temsil ediliyor; nesne kimliği her render'da değişmesin diye.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, kalemAnahtari, adres?.id]);
+
   // Gösterim için; asıl hesap siparis_olustur() içinde yapılır.
   const { minSepetTutari, teslimatUcreti, ucretsizTeslimatEsigi } = ayarlar;
   const ucretsizTeslimat = ucretsizTeslimatEsigi != null && totalPrice >= ucretsizTeslimatEsigi;
   const teslimat = ucretsizTeslimat ? 0 : teslimatUcreti;
   const minEksik = Math.max(minSepetTutari - totalPrice, 0);
   const ucretsizaKalan = ucretsizTeslimatEsigi != null && !ucretsizTeslimat ? ucretsizTeslimatEsigi - totalPrice : 0;
+  const indirim = onizleme?.kampanya?.indirim ?? 0;
 
   const handleSiparisTamamla = async () => {
     if (!user) {
@@ -171,6 +206,17 @@ export default function CartScreen() {
             {teslimat === 0 ? 'Ücretsiz' : tl(teslimat)}
           </Text>
         </View>
+        {onizleme?.kampanya && (
+          <View className="mt-1 flex-row items-center justify-between">
+            <Text className="text-sm font-semibold text-primary-600">🎉 {onizleme.kampanya.ad}</Text>
+            <Text className="text-sm font-semibold text-primary-600">−{tl(indirim)}</Text>
+          </View>
+        )}
+        {!onizleme?.kampanya && onizleme?.firsat && (
+          <Text className="mt-1 text-xs font-semibold text-accent">
+            🎁 {tl(onizleme.firsat.eksik)} daha ekleyin: {onizleme.firsat.ad}
+          </Text>
+        )}
         {ucretsizaKalan > 0 && (
           <Text className="mt-1 text-xs text-primary-600">
             {tl(ucretsizaKalan)} daha ekleyin, teslimat ücretsiz olsun.
@@ -178,7 +224,7 @@ export default function CartScreen() {
         )}
         <View className="mt-2 flex-row items-center justify-between">
           <Text className="text-base text-gray-500">Toplam</Text>
-          <Text className="text-2xl font-extrabold text-gray-900">{tl(totalPrice + teslimat)}</Text>
+          <Text className="text-2xl font-extrabold text-gray-900">{tl(totalPrice + teslimat - indirim)}</Text>
         </View>
         {minEksik > 0 && (
           <Text className="mt-2 text-center text-xs font-semibold text-accent">

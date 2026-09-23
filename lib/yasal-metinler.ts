@@ -28,7 +28,7 @@ export const YASAL_METINLER: Record<YasalSayfa, Metin> = {
       {
         baslik: 'İşleme Amaçları',
         metin:
-          'Üyelik oluşturma ve telefon numarasıyla kimlik doğrulama (SMS doğrulama kodu), siparişlerin alınması, hazırlanması ve adresinize teslimi, sipariş durumu hakkında bilgilendirme, müşteri destek taleplerinin yanıtlanması, yasal yükümlülüklerin (vergi ve ticaret mevzuatı) yerine getirilmesi.',
+          'Üyelik oluşturma ve telefon numarasıyla kimlik doğrulama (SMS doğrulama kodu), siparişlerin alınması, hazırlanması ve adresinize teslimi, sipariş durumu hakkında bilgilendirme, kampanya ve indirimlerin (ör. ilk sipariş indirimi) uygulanması ve kötüye kullanımının önlenmesi, müşteri destek taleplerinin yanıtlanması, yasal yükümlülüklerin (vergi ve ticaret mevzuatı) yerine getirilmesi.',
       },
       {
         baslik: 'Hukuki Sebepler',
@@ -43,7 +43,7 @@ export const YASAL_METINLER: Record<YasalSayfa, Metin> = {
       {
         baslik: 'Saklama Süresi',
         metin:
-          'Hesabınızı sildiğinizde ad, telefon ve adres bilgileriniz silinir. Sipariş kayıtları mevzuatın öngördüğü süre boyunca kişisel bilgilerinizden arındırılarak saklanır.',
+          'Hesabınızı sildiğinizde ad, telefon ve adres bilgileriniz silinir. Sipariş kayıtları mevzuatın öngördüğü süre boyunca kişisel bilgilerinizden arındırılarak saklanır. İlk sipariş gibi kampanyaların tekrar tekrar kullanılmasını önlemek amacıyla telefon numaranız ve teslimat adresiniz, geri çevrilemeyecek şekilde şifrelenmiş bir iz (özet) olarak hesabınız silindikten sonra da saklanır; bu iz numaranızı veya adresinizi göstermez, yalnızca aynı bilgiyle yeniden kampanya kullanılıp kullanılmadığını anlamaya yarar.',
       },
       {
         baslik: 'Haklarınız',
