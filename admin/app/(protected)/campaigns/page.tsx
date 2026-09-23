@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
+import { ImageUploader } from '@/components/ImageUploader';
 import { tl } from '@/lib/karlilik';
 import { supabase } from '@/lib/supabase';
 
@@ -17,6 +18,8 @@ type Kampanya = {
   baslangic: string | null;
   bitis: string | null;
   aktif: boolean;
+  afis_url: string | null;
+  afis_sira: number;
 };
 
 type Kullanim = { siparis: number; indirim: number };
@@ -60,6 +63,8 @@ const BOS: Omit<Kampanya, 'id'> = {
   baslangic: null,
   bitis: null,
   aktif: true,
+  afis_url: null,
+  afis_sira: 0,
 };
 
 export default function CampaignsPage() {
@@ -96,8 +101,21 @@ export default function CampaignsPage() {
   const kaydet = async (e: FormEvent) => {
     e.preventDefault();
     if (!duzenlenen) return;
-    setSaving(true);
     setError(null);
+    const { baslangic, bitis } = duzenlenen;
+    if (baslangic && bitis && new Date(bitis) <= new Date(baslangic)) {
+      setError('Bitiş tarihi başlangıç tarihinden sonra olmalı.');
+      return;
+    }
+    if (
+      bitis &&
+      duzenlenen.aktif &&
+      new Date(bitis) <= new Date() &&
+      !window.confirm('Bitiş tarihi geçmişte: kampanya kaydedilir ama uygulanmaz ve afişi görünmez. Devam edilsin mi?')
+    ) {
+      return;
+    }
+    setSaving(true);
     const { id, ...alanlar } = duzenlenen;
     const satir = {
       ...alanlar,
@@ -254,10 +272,43 @@ export default function CampaignsPage() {
               </span>
             </span>
           </label>
+          <div className="rounded-lg border border-gray-200 p-3">
+            <ImageUploader
+              value={duzenlenen.afis_url ?? ''}
+              onChange={(url) => alan('afis_url', url)}
+              pathPrefix="banners"
+              label="Ana sayfa afişi (isteğe bağlı)"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Önerilen boyut 1600×500 (en/boy ≈ 3,2). Kampanya aktif ve tarih aralığındayken uygulamanın ana sayfasında
+              görünür, bitince kendiliğinden kalkar. Yalnızca ilk sipariş kampanyalarının afişi daha önce sipariş vermiş
+              müşterilere gösterilmez.
+            </p>
+            <div className="mt-2 flex items-center gap-3">
+              <label className="text-sm text-gray-700">
+                Sıra
+                <input
+                  type="number"
+                  value={duzenlenen.afis_sira}
+                  onChange={(e) => alan('afis_sira', Number(e.target.value))}
+                  className="ml-2 w-20 rounded-lg border border-gray-300 px-2 py-1 text-sm"
+                />
+              </label>
+              {duzenlenen.afis_url && (
+                <button
+                  type="button"
+                  onClick={() => alan('afis_url', null)}
+                  className="text-sm text-red-600 hover:underline">
+                  Afişi kaldır
+                </button>
+              )}
+            </div>
+          </div>
           <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
             <input type="checkbox" checked={duzenlenen.aktif} onChange={(e) => alan('aktif', e.target.checked)} />
             Aktif
           </label>
+          {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button
               type="submit"
@@ -296,6 +347,10 @@ export default function CampaignsPage() {
                 return (
                   <tr key={k.id}>
                     <td className="px-4 py-2 font-medium text-gray-900">
+                      {k.afis_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={k.afis_url} alt="" className="mb-1 aspect-[3.2/1] w-40 rounded object-cover" />
+                      )}
                       {k.ad}
                       <div className="text-xs font-normal text-gray-400">{TUR_AD[k.tur]}</div>
                     </td>

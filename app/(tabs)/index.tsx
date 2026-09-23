@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   FlatList,
   Image,
@@ -17,7 +18,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ProductCard } from '@/components/ProductCard';
 import { useCart } from '@/context/cart-context';
+import { useAuth } from '@/context/auth-context';
 import { useCatalog, type Category } from '@/context/catalog-context';
+import { kampanyaKosullari, kampanyaSurdeMi } from '@/lib/kampanya';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 20 * 2 - 12) / 2;
@@ -28,13 +31,6 @@ const BANNER_GAP = 12;
 const KATEGORI_GAP = 12;
 const KATEGORI_TILE_WIDTH = (width - 40 - KATEGORI_GAP * 3) / 4;
 const KATEGORI_CIRCLE = KATEGORI_TILE_WIDTH * 0.72;
-
-const BANNER_GORSELLERI = [
-  require('../../assets/images/banner-1.png'),
-  require('../../assets/images/banner-2.png'),
-  require('../../assets/images/banner-3.png'),
-  require('../../assets/images/banner-4.png'),
-];
 
 export default function MarketScreen() {
   const [aramaKelimesi, setAramaKelimesi] = useState('');
@@ -200,10 +196,22 @@ function KategoriIzgara({ categories }: { categories: Category[] }) {
   );
 }
 
+// Afişler kampanyalardan gelir (admin panel → Kampanyalar): kampanya aktif ve
+// tarih aralığındayken görünür, bitince kalkar. İlk sipariş kampanyası, daha önce
+// sipariş vermiş müşteriye gösterilmez (asıl kontrol sunucuda, bu yalnızca görünüm).
 function BannerSlider() {
+  const { kampanyaAfisleri } = useCatalog();
+  const { user } = useAuth();
+  const { orders } = useCart();
   const [aktifIndex, setAktifIndex] = useState(0);
   const listRef = useRef<FlatList>(null);
   const indexRef = useRef(0);
+
+  const oncekiSiparisVar = !!user && orders.some((o) => o.durum !== 'iptal');
+  const afisler = kampanyaAfisleri.filter(
+    (k) => kampanyaSurdeMi(k) && !(k.sadeceIlkSiparis && oncekiSiparisVar)
+  );
+  const afisSayisi = afisler.length;
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const index = Math.round(e.nativeEvent.contentOffset.x / (BANNER_WIDTH + BANNER_GAP));
@@ -212,22 +220,25 @@ function BannerSlider() {
   };
 
   useEffect(() => {
+    if (afisSayisi < 2) return;
     const timer = setInterval(() => {
-      const next = (indexRef.current + 1) % BANNER_GORSELLERI.length;
+      const next = (indexRef.current + 1) % afisSayisi;
       indexRef.current = next;
       listRef.current?.scrollToOffset({ offset: next * (BANNER_WIDTH + BANNER_GAP), animated: true });
       setAktifIndex(next);
-    }, 2000);
+    }, 3000);
     return () => clearInterval(timer);
-  }, []);
+  }, [afisSayisi]);
+
+  if (afisSayisi === 0) return null;
 
   return (
     <View className="mb-5">
       <FlatList
         ref={listRef}
         horizontal
-        data={BANNER_GORSELLERI}
-        keyExtractor={(_, index) => `banner-${index}`}
+        data={afisler}
+        keyExtractor={(k) => k.id}
         showsHorizontalScrollIndicator={false}
         pagingEnabled={false}
         snapToInterval={BANNER_WIDTH + BANNER_GAP}
@@ -235,27 +246,33 @@ function BannerSlider() {
         onMomentumScrollEnd={onScroll}
         contentContainerStyle={{ paddingHorizontal: 20, gap: BANNER_GAP }}
         renderItem={({ item }) => (
-          <Image
-            source={item}
-            style={{ width: BANNER_WIDTH, height: BANNER_HEIGHT, borderRadius: 20 }}
-            resizeMode="cover"
-          />
+          <Pressable
+            onPress={() => Alert.alert(item.ad, kampanyaKosullari(item))}
+            accessibilityLabel={item.ad}>
+            <Image
+              source={{ uri: item.afisUrl }}
+              style={{ width: BANNER_WIDTH, height: BANNER_HEIGHT, borderRadius: 20 }}
+              resizeMode="cover"
+            />
+          </Pressable>
         )}
       />
 
-      <View className="mt-3 flex-row justify-center" style={{ gap: 6 }}>
-        {BANNER_GORSELLERI.map((_, index) => (
-          <View
-            key={index}
-            style={{
-              width: aktifIndex === index ? 18 : 6,
-              height: 6,
-              borderRadius: 3,
-              backgroundColor: aktifIndex === index ? '#10995a' : '#d1d5db',
-            }}
-          />
-        ))}
-      </View>
+      {afisSayisi > 1 && (
+        <View className="mt-3 flex-row justify-center" style={{ gap: 6 }}>
+          {afisler.map((k, index) => (
+            <View
+              key={k.id}
+              style={{
+                width: aktifIndex === index ? 18 : 6,
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: aktifIndex === index ? '#10995a' : '#d1d5db',
+              }}
+            />
+          ))}
+        </View>
+      )}
     </View>
   );
 }

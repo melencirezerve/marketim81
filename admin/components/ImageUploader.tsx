@@ -6,12 +6,13 @@ import { supabase } from '@/lib/supabase';
 type Props = {
   value: string;
   onChange: (url: string) => void;
-  pathPrefix: 'products' | 'categories';
+  pathPrefix: 'products' | 'categories' | 'banners';
   /** categories için slug (upsert), products için boş bırakılır (her yüklemede uuid üretilir) */
   fileName?: string;
+  label?: string;
 };
 
-export function ImageUploader({ value, onChange, pathPrefix, fileName }: Props) {
+export function ImageUploader({ value, onChange, pathPrefix, fileName, label = 'Görsel' }: Props) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,10 +38,16 @@ export function ImageUploader({ value, onChange, pathPrefix, fileName }: Props) 
 
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-gray-700">Görsel</label>
+      <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
       {value && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={value} alt="" className="mb-2 h-24 w-24 rounded-lg border border-gray-200 object-cover" />
+        <img
+          src={value}
+          alt=""
+          className={`mb-2 rounded-lg border border-gray-200 object-cover ${
+            pathPrefix === 'banners' ? 'aspect-[3.2/1] w-full' : 'h-24 w-24'
+          }`}
+        />
       )}
       <input
         type="file"

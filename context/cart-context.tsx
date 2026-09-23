@@ -123,7 +123,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   // Oturum her yenilendiğinde user nesnesi değişir; abonelik ve yükleme kimliğe bağlı olsun.
   const userId = user?.id;
-  const { products, refresh: katalogYenile } = useCatalog();
+  const { products, sessizYenile: katalogYenile } = useCatalog();
   const [items, setItems] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);

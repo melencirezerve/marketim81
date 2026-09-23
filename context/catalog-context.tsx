@@ -1,4 +1,6 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { AppState } from 'react-native';
+import type { KampanyaAfis } from '@/lib/kampanya';
 import { supabase } from '@/lib/supabase';
 
 export type Category = { id: string; ad: string; icon: string; gorsel: string; sira: number };
@@ -41,9 +43,12 @@ type CatalogContextType = {
   categories: Category[];
   products: Product[];
   ayarlar: MarketAyarlari;
+  kampanyaAfisleri: KampanyaAfis[];
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  // Yükleniyor ekranı göstermeden arka planda yenile (sipariş sonrası stok vb.).
+  sessizYenile: () => Promise<void>;
 };
 
 const CatalogContext = createContext<CatalogContextType | undefined>(undefined);
@@ -52,17 +57,25 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   const [categories, setCategories] = useState<Category[]>([TUMU_CATEGORY]);
   const [products, setProducts] = useState<Product[]>([]);
   const [ayarlar, setAyarlar] = useState<MarketAyarlari>(VARSAYILAN_AYARLAR);
+  const [kampanyaAfisleri, setKampanyaAfisleri] = useState<KampanyaAfis[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCatalog = async () => {
-    setLoading(true);
-    setError(null);
+  const sonYukleme = useRef(0);
+
+  // sessiz: arka planda yenile (tam ekran yükleniyor göstergesi ve hata ekranı yok).
+  const fetchCatalog = async (sessiz = false) => {
+    sonYukleme.current = Date.now();
+    if (!sessiz) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const [
         { data: catData, error: catErr },
         { data: prodData, error: prodErr },
         { data: ayarData },
+        { data: afisData },
       ] = await Promise.all([
         supabase.from('categories').select('*').order('sira', { ascending: true }),
         supabase
@@ -70,6 +83,12 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
           .select('*, product_categories(category_id)')
           .eq('aktif', true),
         supabase.from('market_ayarlari').select('*').maybeSingle(),
+        // Afişli aktif kampanyalar (RLS yalnızca aktif olanları döndürür); tarih süzmesi ekranda.
+        supabase
+          .from('kampanyalar')
+          .select('id, ad, tur, deger, max_indirim, min_sepet, sadece_ilk_siparis, baslangic, bitis, afis_url')
+          .not('afis_url', 'is', null)
+          .order('afis_sira', { ascending: true }),
       ]);
       if (catErr) throw catErr;
       if (prodErr) throw prodErr;
@@ -99,6 +118,20 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
           aciklama: p.aciklama ?? '',
         }))
       );
+      setKampanyaAfisleri(
+        (afisData ?? []).map((k: any) => ({
+          id: k.id,
+          ad: k.ad,
+          tur: k.tur,
+          deger: k.deger == null ? null : Number(k.deger),
+          maxIndirim: k.max_indirim == null ? null : Number(k.max_indirim),
+          minSepet: Number(k.min_sepet),
+          sadeceIlkSiparis: k.sadece_ilk_siparis,
+          baslangic: k.baslangic,
+          bitis: k.bitis,
+          afisUrl: k.afis_url,
+        }))
+      );
       if (ayarData) {
         setAyarlar({
           minSepetTutari: Number(ayarData.min_sepet_tutari),
@@ -108,7 +141,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
         });
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Ürünler yüklenemedi');
+      if (!sessiz) setError(e instanceof Error ? e.message : 'Ürünler yüklenemedi');
     } finally {
       setLoading(false);
     }
@@ -120,8 +153,19 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     fetchCatalog();
   }, []);
 
+  // Katalog yalnızca açılışta yükleniyordu; admin'deki fiyat/stok/kampanya değişikliği
+  // uygulama kapatılıp açılana kadar görünmüyordu. Öne gelince (en fazla dakikada bir) yenile.
+  useEffect(() => {
+    const abonelik = AppState.addEventListener('change', (durum) => {
+      if (durum === 'active' && Date.now() - sonYukleme.current > 60_000) fetchCatalog(true);
+    });
+    return () => abonelik.remove();
+    // fetchCatalog yalnızca setState ve ref kullanıyor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <CatalogContext.Provider value={{ categories, products, ayarlar, loading, error, refresh: fetchCatalog }}>
+    <CatalogContext.Provider value={{ categories, products, ayarlar, kampanyaAfisleri, loading, error, refresh: () => fetchCatalog(), sessizYenile: () => fetchCatalog(true) }}>
       {children}
     </CatalogContext.Provider>
   );
