@@ -48,7 +48,7 @@ export default function ProfileScreen() {
               <Text className="text-lg font-bold text-gray-900">
                 {profile?.ad?.trim() || 'Siparis81 Kullanıcısı'}
               </Text>
-              <Text className="mt-0.5 text-sm text-gray-400">{user.email}</Text>
+              <Text className="mt-0.5 text-sm text-gray-400">{profile?.telefon || user.email}</Text>
             </View>
           </View>
         ) : (

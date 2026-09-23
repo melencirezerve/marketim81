@@ -16,13 +16,10 @@ type AuthContextValue = {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
-  signUp: (
-    email: string,
-    password: string,
-    ad: string,
-    telefon: string
-  ) => Promise<{ error: string | null; needsConfirmation: boolean }>;
-  signIn: (email: string, password: string) => Promise<string | null>;
+  // Telefon + SMS kodu (OTP) ile giriş; ilk girişte hesap otomatik açılır.
+  sendOtp: (telefon: string) => Promise<string | null>;
+  verifyOtp: (telefon: string, kod: string) => Promise<{ error: string | null; adGerekli: boolean }>;
+  setAd: (ad: string) => Promise<string | null>;
   signOut: () => Promise<void>;
   setTercihOdemeYontemi: (yontem: OdemeYontemi) => Promise<string | null>;
 };
@@ -55,20 +52,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, ad: string, telefon: string) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) return { error: error.message, needsConfirmation: false };
-    if (data.user) {
-      await supabase.from('profiles').update({ ad, telefon }).eq('id', data.user.id);
-    }
-    // "Confirm email" ayarı açıksa signUp bir oturum döndürmez — kullanıcı
-    // e-postasındaki bağlantıya tıklayana kadar giriş yapılmış sayılmaz.
-    return { error: null, needsConfirmation: !data.session };
+  const sendOtp = async (telefon: string) => {
+    const { error } = await supabase.auth.signInWithOtp({ phone: telefon });
+    return error ? error.message : null;
   };
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error ? error.message : null;
+  const verifyOtp = async (telefon: string, kod: string) => {
+    const { data, error } = await supabase.auth.verifyOtp({ phone: telefon, token: kod, type: 'sms' });
+    if (error || !data.user) return { error: error?.message ?? 'Doğrulama başarısız.', adGerekli: false };
+    const { data: p } = await supabase.from('profiles').select('ad').eq('id', data.user.id).single();
+    return { error: null, adGerekli: !p?.ad?.trim() };
+  };
+
+  const setAd = async (ad: string) => {
+    if (!session) return 'Giriş yapmalısınız.';
+    const { error } = await supabase.from('profiles').update({ ad }).eq('id', session.user.id);
+    if (error) return error.message;
+    setProfile((prev) => (prev ? { ...prev, ad } : prev));
+    return null;
   };
 
   const signOut = async () => {
@@ -88,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, user: session?.user ?? null, profile, loading, signUp, signIn, signOut, setTercihOdemeYontemi }}>
+      value={{ session, user: session?.user ?? null, profile, loading, sendOtp, verifyOtp, setAd, signOut, setTercihOdemeYontemi }}>
       {children}
     </AuthContext.Provider>
   );
