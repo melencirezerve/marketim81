@@ -1,17 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/context/auth-context';
 import { useCart, type CartItem } from '@/context/cart-context';
+import { ODEME_YONTEMLERI, type OdemeYontemi } from '@/lib/odeme-yontemleri';
 import { supabase } from '@/lib/supabase';
 
 export default function CartScreen() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { items, increase, decrease, removeFromCart, totalPrice, totalCount, placeOrder } = useCart();
   const [gonderiliyor, setGonderiliyor] = useState(false);
+  const [odemeYontemi, setOdemeYontemi] = useState<OdemeYontemi>('kapida_nakit');
+
+  // Profildeki varsayılan ödeme yöntemi yüklenince sepette ön-seçili gelsin.
+  useEffect(() => {
+    if (profile?.tercih_odeme_yontemi) setOdemeYontemi(profile.tercih_odeme_yontemi);
+  }, [profile?.tercih_odeme_yontemi]);
 
   const handleSiparisTamamla = async () => {
     if (!user) {
@@ -41,7 +48,7 @@ export default function CartScreen() {
     const teslimatAdresi = `${adres.sokak} No:${adres.bina_no}${daire}, ${adres.mahalle} Mah., Cumayeri/Düzce`;
 
     try {
-      const orderId = await placeOrder(teslimatAdresi);
+      const orderId = await placeOrder(teslimatAdresi, odemeYontemi);
       router.push({ pathname: '/order-confirmation', params: { orderId } });
     } catch (e) {
       Alert.alert('Sipariş oluşturulamadı', e instanceof Error ? e.message : 'Bilinmeyen bir hata oluştu.');
@@ -87,6 +94,26 @@ export default function CartScreen() {
       />
 
       <View className="border-t border-gray-100 bg-white px-5 pb-6 pt-4">
+        <Text className="mb-2 text-sm font-semibold text-gray-700">Ödeme Yöntemi</Text>
+        <View className="mb-4 flex-row" style={{ gap: 10 }}>
+          {ODEME_YONTEMLERI.map((o) => {
+            const secili = odemeYontemi === o.id;
+            return (
+              <Pressable
+                key={o.id}
+                onPress={() => setOdemeYontemi(o.id)}
+                className={`flex-1 flex-row items-center rounded-2xl border px-3 py-3 ${
+                  secili ? 'border-primary-500 bg-primary-50' : 'border-gray-200 bg-white'
+                }`}
+                style={{ gap: 8 }}>
+                <Ionicons name={o.icon} size={18} color={secili ? '#1abc6e' : '#94a3b8'} />
+                <Text className={`text-sm font-semibold ${secili ? 'text-primary-700' : 'text-gray-600'}`}>
+                  {o.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
         <View className="flex-row items-center justify-between">
           <Text className="text-base text-gray-500">Toplam</Text>
           <Text className="text-2xl font-extrabold text-gray-900">{totalPrice} ₺</Text>

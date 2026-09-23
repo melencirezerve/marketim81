@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from '@/context/auth-context';
 import type { Product } from '@/context/catalog-context';
+import type { OdemeYontemi } from '@/lib/odeme-yontemleri';
 import { supabase } from '@/lib/supabase';
 import { bildirimIzniIste, telefonBildirimiGoster } from '@/services/push-notifications';
 
@@ -28,6 +29,7 @@ export type Order = {
   items: OrderItem[];
   toplam: number;
   durum: OrderStatus;
+  odemeYontemi: OdemeYontemi;
 };
 
 export type AppNotification = {
@@ -80,7 +82,7 @@ type CartContextValue = {
   totalCount: number;
   totalPrice: number;
   orders: Order[];
-  placeOrder: (teslimatAdresi: string) => Promise<string>;
+  placeOrder: (teslimatAdresi: string, odemeYontemi: OdemeYontemi) => Promise<string>;
   notifications: AppNotification[];
   unreadNotificationCount: number;
   markNotificationRead: (id: string) => void;
@@ -123,7 +125,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
     supabase
       .from('orders')
-      .select('id, durum, toplam, created_at, order_items(product_id, ad, fiyat, gorsel_url, miktar)')
+      .select('id, durum, toplam, odeme_yontemi, created_at, order_items(product_id, ad, fiyat, gorsel_url, miktar)')
       .eq('customer_id', user.id)
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
@@ -134,6 +136,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             tarih: o.created_at,
             durum: o.durum,
             toplam: Number(o.toplam),
+            odemeYontemi: o.odeme_yontemi,
             items: (o.order_items ?? []).map((it: any) => ({
               productId: it.product_id,
               ad: it.ad,
@@ -208,7 +211,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [items]
   );
 
-  const placeOrder = async (teslimatAdresi: string) => {
+  const placeOrder = async (teslimatAdresi: string, odemeYontemi: OdemeYontemi) => {
     if (!user) throw new Error('Sipariş vermek için giriş yapmalısınız.');
 
     const id = `S81-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -225,6 +228,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       items: siparisKalemleri,
       toplam: totalPrice,
       durum: 'alindi',
+      odemeYontemi,
     };
     const resimUrl = items[0]?.product.gorsel;
 
@@ -235,6 +239,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       musteri_telefon: profile?.telefon ?? null,
       musteri_email: user.email ?? null,
       teslimat_adresi: teslimatAdresi,
+      odeme_yontemi: odemeYontemi,
       durum: 'alindi',
       toplam: totalPrice,
     });

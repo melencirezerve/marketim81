@@ -1,63 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-type PaymentMethod = {
-  id: string;
-  sahip: string;
-  son4: string;
-  sonKullanma: string;
-  varsayilan: boolean;
-};
-
-const baslangicKartlar: PaymentMethod[] = [
-  {
-    id: '1',
-    sahip: 'Siparis81 Kullanıcısı',
-    son4: '4242',
-    sonKullanma: '12/27',
-    varsayilan: true,
-  },
-];
+import { useAuth } from '@/context/auth-context';
+import { ODEME_YONTEMLERI, type OdemeYontemi } from '@/lib/odeme-yontemleri';
 
 export default function PaymentMethodsScreen() {
-  const [kartlar, setKartlar] = useState<PaymentMethod[]>(baslangicKartlar);
-  const [formAcik, setFormAcik] = useState(false);
-  const [sahip, setSahip] = useState('');
-  const [numara, setNumara] = useState('');
-  const [sonKullanma, setSonKullanma] = useState('');
+  const { user, profile, setTercihOdemeYontemi } = useAuth();
+  const [kaydedilen, setKaydedilen] = useState<OdemeYontemi | null>(null);
+  const secili = profile?.tercih_odeme_yontemi ?? 'kapida_nakit';
 
-  const ekle = () => {
-    const son4 = numara.replace(/\D/g, '').slice(-4);
-    if (!sahip.trim() || son4.length !== 4 || !sonKullanma.trim()) return;
-    const yeni: PaymentMethod = {
-      id: Date.now().toString(),
-      sahip: sahip.trim(),
-      son4,
-      sonKullanma: sonKullanma.trim(),
-      varsayilan: kartlar.length === 0,
-    };
-    setKartlar((prev) => [...prev, yeni]);
-    setSahip('');
-    setNumara('');
-    setSonKullanma('');
-    setFormAcik(false);
-  };
-
-  const sil = (id: string) => {
-    setKartlar((prev) => {
-      const kalan = prev.filter((k) => k.id !== id);
-      if (kalan.length > 0 && !kalan.some((k) => k.varsayilan)) {
-        kalan[0] = { ...kalan[0], varsayilan: true };
-      }
-      return kalan;
-    });
-  };
-
-  const varsayilanYap = (id: string) => {
-    setKartlar((prev) => prev.map((k) => ({ ...k, varsayilan: k.id === id })));
+  const sec = async (yontem: OdemeYontemi) => {
+    if (yontem === secili || kaydedilen) return;
+    setKaydedilen(yontem);
+    const hata = await setTercihOdemeYontemi(yontem);
+    setKaydedilen(null);
+    if (hata) Alert.alert('Kaydedilemedi', hata);
   };
 
   return (
@@ -71,94 +31,60 @@ export default function PaymentMethodsScreen() {
         <Text className="text-lg font-extrabold text-gray-900">Ödeme Yöntemlerim</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 32 }}>
-        {kartlar.length === 0 && (
-          <View className="items-center justify-center rounded-3xl bg-white py-10">
-            <Ionicons name="card-outline" size={40} color="#1abc6e" />
-            <Text className="mt-3 text-sm text-gray-500">Henüz kayıtlı kartınız yok</Text>
-          </View>
-        )}
-
-        {kartlar.map((k) => (
-          <View key={k.id} className="rounded-3xl bg-white p-4 shadow-sm">
-            <View className="flex-row items-start justify-between">
-              <View className="flex-row items-center" style={{ gap: 8 }}>
-                <View className="h-9 w-9 items-center justify-center rounded-full bg-primary-50">
-                  <Ionicons name="card-outline" size={18} color="#1abc6e" />
-                </View>
-                <Text className="text-base font-bold text-gray-900">•••• {k.son4}</Text>
-                {k.varsayilan && (
-                  <View className="rounded-full bg-primary-50 px-2 py-0.5">
-                    <Text className="text-[10px] font-bold text-primary-700">Varsayılan</Text>
-                  </View>
-                )}
-              </View>
-              <Pressable onPress={() => sil(k.id)} className="p-1">
-                <Ionicons name="trash-outline" size={18} color="#cbd5e1" />
-              </Pressable>
-            </View>
-            <Text className="ml-11 mt-1 text-sm text-gray-500">
-              {k.sahip} · SKT {k.sonKullanma}
-            </Text>
-            {!k.varsayilan && (
-              <Pressable onPress={() => varsayilanYap(k.id)} className="ml-11 mt-2 self-start">
-                <Text className="text-xs font-semibold text-primary-600">Varsayılan Yap</Text>
-              </Pressable>
-            )}
-          </View>
-        ))}
-
-        {formAcik ? (
-          <View className="rounded-3xl bg-white p-4 shadow-sm">
-            <TextInput
-              value={sahip}
-              onChangeText={setSahip}
-              placeholder="Kart üzerindeki isim"
-              placeholderTextColor="#9aa5b1"
-              className="rounded-2xl bg-surface px-4 py-3 text-sm text-gray-900"
-            />
-            <TextInput
-              value={numara}
-              onChangeText={setNumara}
-              placeholder="Kart numarası"
-              placeholderTextColor="#9aa5b1"
-              keyboardType="number-pad"
-              maxLength={19}
-              className="mt-3 rounded-2xl bg-surface px-4 py-3 text-sm text-gray-900"
-            />
-            <TextInput
-              value={sonKullanma}
-              onChangeText={setSonKullanma}
-              placeholder="Son kullanma (AA/YY)"
-              placeholderTextColor="#9aa5b1"
-              maxLength={5}
-              className="mt-3 rounded-2xl bg-surface px-4 py-3 text-sm text-gray-900"
-            />
-            <View className="mt-3 flex-row" style={{ gap: 10 }}>
-              <Pressable
-                onPress={() => {
-                  setFormAcik(false);
-                  setSahip('');
-                  setNumara('');
-                  setSonKullanma('');
-                }}
-                className="flex-1 items-center rounded-2xl bg-surface py-3">
-                <Text className="text-sm font-semibold text-gray-600">Vazgeç</Text>
-              </Pressable>
-              <Pressable onPress={ekle} className="flex-1 items-center rounded-2xl bg-primary-500 py-3">
-                <Text className="text-sm font-semibold text-white">Kaydet</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : (
-          <Pressable
-            onPress={() => setFormAcik(true)}
-            className="flex-row items-center justify-center rounded-2xl bg-white py-4 shadow-sm">
-            <Ionicons name="add" size={20} color="#1abc6e" />
-            <Text className="ml-2 text-base font-semibold text-primary-600">Yeni Kart Ekle</Text>
+      {!user ? (
+        <View className="flex-1 items-center justify-center px-10">
+          <Ionicons name="lock-closed-outline" size={40} color="#1abc6e" />
+          <Text className="mt-3 text-center text-sm text-gray-500">
+            Varsayılan ödeme yönteminizi seçmek için giriş yapın.
+          </Text>
+          <Pressable onPress={() => router.push('/auth')} className="mt-5 rounded-2xl bg-primary-500 px-6 py-3">
+            <Text className="font-semibold text-white">Giriş Yap</Text>
           </Pressable>
-        )}
-      </ScrollView>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 32 }}>
+          <Text className="text-sm text-gray-500">
+            Varsayılan ödeme yönteminiz sepette otomatik seçili gelir; sipariş verirken değiştirebilirsiniz.
+          </Text>
+
+          {ODEME_YONTEMLERI.map((o) => {
+            const aktif = secili === o.id;
+            return (
+              <Pressable
+                key={o.id}
+                onPress={() => sec(o.id)}
+                className={`flex-row items-center rounded-3xl border-2 bg-white p-4 shadow-sm ${
+                  aktif ? 'border-primary-500' : 'border-transparent'
+                }`}
+                style={{ gap: 12 }}>
+                <View className="h-11 w-11 items-center justify-center rounded-full bg-primary-50">
+                  <Ionicons name={o.icon} size={22} color="#1abc6e" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-base font-bold text-gray-900">{o.label}</Text>
+                  <Text className="mt-0.5 text-xs text-gray-500">{o.aciklama}</Text>
+                </View>
+                {kaydedilen === o.id ? (
+                  <ActivityIndicator color="#1abc6e" />
+                ) : (
+                  <Ionicons
+                    name={aktif ? 'radio-button-on' : 'radio-button-off'}
+                    size={22}
+                    color={aktif ? '#1abc6e' : '#cbd5e1'}
+                  />
+                )}
+              </Pressable>
+            );
+          })}
+
+          <View className="mt-2 flex-row items-start rounded-2xl bg-white p-4" style={{ gap: 10 }}>
+            <Ionicons name="information-circle-outline" size={18} color="#94a3b8" />
+            <Text className="flex-1 text-xs text-gray-500">
+              Online kartla ödeme yakında. Güvenliğiniz için kart bilgileriniz uygulamada saklanmaz.
+            </Text>
+          </View>
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }

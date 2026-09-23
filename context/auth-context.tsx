@@ -1,5 +1,6 @@
 import type { Session, User } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import type { OdemeYontemi } from '@/lib/odeme-yontemleri';
 import { supabase } from '@/lib/supabase';
 
 export type Profile = {
@@ -7,6 +8,7 @@ export type Profile = {
   role: 'customer' | 'admin';
   ad: string | null;
   telefon: string | null;
+  tercih_odeme_yontemi: OdemeYontemi;
 };
 
 type AuthContextValue = {
@@ -22,6 +24,7 @@ type AuthContextValue = {
   ) => Promise<{ error: string | null; needsConfirmation: boolean }>;
   signIn: (email: string, password: string) => Promise<string | null>;
   signOut: () => Promise<void>;
+  setTercihOdemeYontemi: (yontem: OdemeYontemi) => Promise<string | null>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -72,9 +75,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const setTercihOdemeYontemi = async (yontem: OdemeYontemi) => {
+    if (!session) return 'Giriş yapmalısınız.';
+    const { error } = await supabase
+      .from('profiles')
+      .update({ tercih_odeme_yontemi: yontem })
+      .eq('id', session.user.id);
+    if (error) return error.message;
+    setProfile((prev) => (prev ? { ...prev, tercih_odeme_yontemi: yontem } : prev));
+    return null;
+  };
+
   return (
     <AuthContext.Provider
-      value={{ session, user: session?.user ?? null, profile, loading, signUp, signIn, signOut }}>
+      value={{ session, user: session?.user ?? null, profile, loading, signUp, signIn, signOut, setTercihOdemeYontemi }}>
       {children}
     </AuthContext.Provider>
   );

@@ -4,6 +4,7 @@ import { FlatList, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCart, type Order, type OrderStatus } from '@/context/cart-context';
+import { odemeYontemiLabel } from '@/lib/odeme-yontemleri';
 
 const DURUM_META: Record<OrderStatus, { label: string; bg: string; color: string }> = {
   alindi: { label: 'Sipariş Alındı', bg: '#e0edff', color: '#2563eb' },
@@ -94,7 +95,9 @@ function OrderCard({ order }: { order: Order }) {
       </View>
 
       <View className="mt-3 flex-row items-center justify-between border-t border-surface pt-3">
-        <Text className="text-xs text-gray-400">{urunSayisi} ürün</Text>
+        <Text className="text-xs text-gray-400">
+          {urunSayisi} ürün · {odemeYontemiLabel(order.odemeYontemi)}
+        </Text>
         <Text className="text-base font-extrabold text-primary-600">{order.toplam} ₺</Text>
       </View>
     </View>

@@ -4,6 +4,7 @@ import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCart } from '@/context/cart-context';
+import { odemeYontemiLabel } from '@/lib/odeme-yontemleri';
 
 export default function OrderConfirmationScreen() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
@@ -36,6 +37,12 @@ export default function OrderConfirmationScreen() {
             {order?.items.reduce((sum, item) => sum + item.miktar, 0) ?? 0} ürün
           </Text>
         </View>
+        {order && (
+          <View className="mt-3 flex-row items-center justify-between border-t border-surface pt-3">
+            <Text className="text-sm text-gray-500">Ödeme</Text>
+            <Text className="text-sm font-bold text-gray-900">{odemeYontemiLabel(order.odemeYontemi)}</Text>
+          </View>
+        )}
         <View className="mt-3 flex-row items-center justify-between border-t border-surface pt-3">
           <Text className="text-sm text-gray-500">Toplam Tutar</Text>
           <Text className="text-lg font-extrabold text-primary-600">{order?.toplam ?? 0} ₺</Text>

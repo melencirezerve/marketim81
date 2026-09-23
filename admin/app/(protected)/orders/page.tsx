@@ -2,7 +2,12 @@
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { OrderStatus, OrderWithItems } from '@/lib/types';
+import type { OdemeYontemi, OrderStatus, OrderWithItems } from '@/lib/types';
+
+const ODEME_LABEL: Record<OdemeYontemi, string> = {
+  kapida_nakit: 'Kapıda Nakit',
+  kapida_kart: 'Kapıda Kart',
+};
 
 const DURUM_META: Record<OrderStatus, { label: string; className: string }> = {
   alindi: { label: 'Sipariş Alındı', className: 'bg-blue-100 text-blue-700' },
@@ -93,6 +98,7 @@ export default function OrdersPage() {
                 <th className="px-4 py-2 text-left font-semibold text-gray-600">Tarih</th>
                 <th className="px-4 py-2 text-left font-semibold text-gray-600">Ürün Sayısı</th>
                 <th className="px-4 py-2 text-left font-semibold text-gray-600">Toplam</th>
+                <th className="px-4 py-2 text-left font-semibold text-gray-600">Ödeme</th>
                 <th className="px-4 py-2 text-left font-semibold text-gray-600">Durum</th>
                 <th className="px-4 py-2"></th>
               </tr>
@@ -119,6 +125,7 @@ export default function OrdersPage() {
                       </td>
                       <td className="px-4 py-2 text-gray-600">{urunSayisi} ürün</td>
                       <td className="px-4 py-2 text-gray-600">{Number(o.toplam).toFixed(2)} TL</td>
+                      <td className="px-4 py-2 text-gray-600">{ODEME_LABEL[o.odeme_yontemi] ?? o.odeme_yontemi}</td>
                       <td className="px-4 py-2">
                         <select
                           value={o.durum}
@@ -140,7 +147,7 @@ export default function OrdersPage() {
                     </tr>
                     {isOpen && (
                       <tr>
-                        <td colSpan={7} className="bg-gray-50 px-4 py-3">
+                        <td colSpan={8} className="bg-gray-50 px-4 py-3">
                           {o.teslimat_adresi && (
                             <div className="mb-3 flex items-start gap-2 text-sm text-gray-600">
                               <span className="font-semibold text-gray-700">Teslimat Adresi:</span>
@@ -171,7 +178,7 @@ export default function OrdersPage() {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-gray-400">
+                  <td colSpan={8} className="px-4 py-6 text-center text-gray-400">
                     Sipariş bulunamadı.
                   </td>
                 </tr>

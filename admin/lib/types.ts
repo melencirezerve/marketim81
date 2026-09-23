@@ -28,6 +28,8 @@ export type ProductWithCategories = Product & {
 
 export type OrderStatus = 'alindi' | 'hazirlaniyor' | 'yolda' | 'kapinda';
 
+export type OdemeYontemi = 'kapida_nakit' | 'kapida_kart';
+
 export type OrderItem = {
   id: string;
   order_id: string;
@@ -46,6 +48,7 @@ export type OrderWithItems = {
   musteri_telefon: string | null;
   musteri_email: string | null;
   teslimat_adresi: string | null;
+  odeme_yontemi: OdemeYontemi;
   durum: OrderStatus;
   toplam: number;
   created_at: string;
