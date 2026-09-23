@@ -6,15 +6,15 @@ import { supabase } from '@/lib/supabase';
 import { ImageUploader } from './ImageUploader';
 import type { Category, Product } from '@/lib/types';
 
-type Props = { initial?: Product; initialCategoryIds?: string[]; categories: Category[] };
+type Props = { initial?: Product; initialCategoryIds?: string[]; categories: Category[]; initialBarkod?: string };
 
-export function ProductForm({ initial, initialCategoryIds, categories }: Props) {
+export function ProductForm({ initial, initialCategoryIds, categories, initialBarkod }: Props) {
   const router = useRouter();
   const isEdit = Boolean(initial);
   const [ad, setAd] = useState(initial?.ad ?? '');
   const [fiyat, setFiyat] = useState(Number(initial?.fiyat ?? 0));
   const [stok, setStok] = useState(initial?.stok ?? 0);
-  const [barkod, setBarkod] = useState(initial?.barkod ?? '');
+  const [barkod, setBarkod] = useState(initial?.barkod ?? initialBarkod ?? '');
   const [aciklama, setAciklama] = useState(initial?.aciklama ?? '');
   const [categoryIds, setCategoryIds] = useState<string[]>(initialCategoryIds ?? []);
   const [altKategori, setAltKategori] = useState(initial?.alt_kategori ?? '');
@@ -87,7 +87,12 @@ export function ProductForm({ initial, initialCategoryIds, categories }: Props) 
       router.push('/products');
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Kaydedilemedi');
+      const mesaj = e instanceof Error ? e.message : (e as { message?: string })?.message;
+      setError(
+        mesaj?.includes('products_barkod_key')
+          ? 'Bu barkod başka bir ürüne kayıtlı.'
+          : mesaj || 'Kaydedilemedi'
+      );
     } finally {
       setSaving(false);
     }

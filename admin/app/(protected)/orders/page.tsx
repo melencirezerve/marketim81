@@ -1,6 +1,8 @@
 'use client';
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import { yeniSiparisSesi } from '@/lib/ses';
 import { supabase } from '@/lib/supabase';
 import type { OdemeYontemi, OrderStatus, OrderWithItems } from '@/lib/types';
 
@@ -20,26 +22,6 @@ const DURUM_META: Record<OrderStatus, { label: string; className: string }> = {
 const DURUM_SIRASI: OrderStatus[] = ['alindi', 'hazirlaniyor', 'yolda', 'kapinda', 'iptal'];
 
 const SIPARIS_SORGUSU = '*, order_items(*)';
-
-// Ses dosyası gerektirmeden kısa bir "ding-dong" (Web Audio). Tarayıcılar sesi
-// ancak sayfayla bir etkileşimden sonra çalar; uyarı bandı her durumda görünür.
-function yeniSiparisSesi() {
-  try {
-    const ctx = new AudioContext();
-    [880, 660].forEach((frekans, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.frequency.value = frekans;
-      gain.gain.setValueAtTime(0.25, ctx.currentTime + i * 0.25);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.25 + 0.4);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(ctx.currentTime + i * 0.25);
-      osc.stop(ctx.currentTime + i * 0.25 + 0.4);
-    });
-  } catch {
-    // Ses çalınamazsa görsel uyarı yeterli.
-  }
-}
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
@@ -125,6 +107,13 @@ export default function OrdersPage() {
     if (
       durum === 'iptal' &&
       !window.confirm(`${order.id} iptal edilsin mi? Ürünler stoğa geri eklenir ve bu işlem geri alınamaz.`)
+    ) {
+      return;
+    }
+    if (
+      (durum === 'yolda' || durum === 'kapinda') &&
+      !order.toplandi_at &&
+      !window.confirm(`${order.id} ürünleri barkodla okutularak toplanmadı. Yine de devam edilsin mi?`)
     ) {
       return;
     }
@@ -243,7 +232,18 @@ export default function OrdersPage() {
                           ))}
                         </select>
                       </td>
-                      <td className="px-4 py-2 text-right">
+                      <td className="whitespace-nowrap px-4 py-2 text-right">
+                        {o.toplandi_at ? (
+                          <span className="mr-3 text-xs font-semibold text-emerald-700">✓ Toplandı</span>
+                        ) : (
+                          (o.durum === 'alindi' || o.durum === 'hazirlaniyor') && (
+                            <Link
+                              href={`/orders/${o.id}/hazirla`}
+                              className="mr-3 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700">
+                              Hazırla
+                            </Link>
+                          )
+                        )}
                         <button onClick={() => toggleExpanded(o.id)} className="text-emerald-700 hover:underline">
                           {isOpen ? 'Gizle' : 'Ürünler'}
                         </button>

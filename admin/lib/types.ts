@@ -61,6 +61,7 @@ export type OrderWithItems = {
   ara_toplam: number;
   teslimat_ucreti: number;
   toplam: number;
+  toplandi_at: string | null;
   created_at: string;
   updated_at: string;
   order_items: OrderItem[];

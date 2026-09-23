@@ -2,10 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { BarkodGiris } from '@/components/BarkodGiris';
 import { supabase } from '@/lib/supabase';
 import type { Category, ProductWithCategories } from '@/lib/types';
 
 export default function ProductsPage() {
+  const router = useRouter();
   const [products, setProducts] = useState<ProductWithCategories[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState('');
@@ -37,12 +40,20 @@ export default function ProductsPage() {
 
   const filtered = useMemo(() => {
     return products.filter((p) => {
-      const matchesSearch = p.ad.toLocaleLowerCase('tr').includes(search.toLocaleLowerCase('tr'));
+      const aranan = search.toLocaleLowerCase('tr');
+      const matchesSearch = p.ad.toLocaleLowerCase('tr').includes(aranan) || (p.barkod ?? '').includes(search);
       const matchesCategory =
         !categoryFilter || p.product_categories.some((pc) => pc.category_id === categoryFilter);
       return matchesSearch && matchesCategory;
     });
   }, [products, search, categoryFilter]);
+
+  // Okutulan barkod kayıtlıysa ürünü düzenlemeye, değilse barkodu dolu yeni ürün formuna git.
+  const barkodOkutuldu = async (kod: string) => {
+    const { data } = await supabase.from('products').select('id').eq('barkod', kod).maybeSingle();
+    if (data) router.push(`/products/${data.id}`);
+    else router.push(`/products/new?barkod=${encodeURIComponent(kod)}`);
+  };
 
   const toggleAktif = async (p: ProductWithCategories) => {
     const { error: updateError } = await supabase.from('products').update({ aktif: !p.aktif }).eq('id', p.id);
@@ -74,9 +85,16 @@ export default function ProductsPage() {
         </Link>
       </div>
 
+      <div className="mb-4">
+        <BarkodGiris
+          onScan={barkodOkutuldu}
+          placeholder="Barkod okutun: kayıtlıysa ürün açılır, değilse yeni ürün formu"
+        />
+      </div>
+
       <div className="mb-4 flex gap-3">
         <input
-          placeholder="Ürün ara..."
+          placeholder="Ürün adı veya barkod ara..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm"

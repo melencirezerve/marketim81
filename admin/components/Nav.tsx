@@ -29,6 +29,9 @@ export function Nav() {
           <Link href="/products" className={linkClass('/products')}>
             Ürünler
           </Link>
+          <Link href="/stock" className={linkClass('/stock')}>
+            Stok
+          </Link>
           <Link href="/categories" className={linkClass('/categories')}>
             Kategoriler
           </Link>
