@@ -19,6 +19,7 @@ export type Product = {
   gorsel_url: string;
   aktif: boolean;
   aciklama: string;
+  kdv_orani: number | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -45,6 +46,7 @@ export type MarketAyarlari = {
   min_sepet_tutari: number;
   teslimat_ucreti: number;
   ucretsiz_teslimat_esigi: number | null;
+  teslimat_kdv_orani: number;
   updated_at?: string;
 };
 

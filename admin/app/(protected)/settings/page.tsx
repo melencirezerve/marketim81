@@ -9,6 +9,7 @@ export default function SettingsPage() {
   const [minSepet, setMinSepet] = useState(0);
   const [teslimatUcreti, setTeslimatUcreti] = useState(0);
   const [ucretsizEsik, setUcretsizEsik] = useState('');
+  const [teslimatKdv, setTeslimatKdv] = useState(20);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +27,7 @@ export default function SettingsPage() {
           setMinSepet(Number(a.min_sepet_tutari));
           setTeslimatUcreti(Number(a.teslimat_ucreti));
           setUcretsizEsik(a.ucretsiz_teslimat_esigi == null ? '' : String(Number(a.ucretsiz_teslimat_esigi)));
+          setTeslimatKdv(Number(a.teslimat_kdv_orani ?? 20));
         }
         setLoading(false);
       });
@@ -42,6 +44,7 @@ export default function SettingsPage() {
         min_sepet_tutari: minSepet,
         teslimat_ucreti: teslimatUcreti,
         ucretsiz_teslimat_esigi: ucretsizEsik === '' ? null : Number(ucretsizEsik),
+        teslimat_kdv_orani: teslimatKdv,
       })
       .eq('id', true);
     if (updateError) setError(updateError.message);
@@ -93,6 +96,20 @@ export default function SettingsPage() {
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
             <p className="mt-1 text-xs text-gray-400">Sepet bu tutar ve üzerindeyse teslimat ücretsiz olur.</p>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Teslimat ücreti KDV oranı (%)</label>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              max="100"
+              value={teslimatKdv}
+              onChange={(e) => setTeslimatKdv(Number(e.target.value))}
+              required
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            />
+            <p className="mt-1 text-xs text-gray-400">Kârlılık raporunda teslimat gelirinin KDV hariç tutarı için.</p>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           {saved && <p className="text-sm text-emerald-700">Kaydedildi.</p>}

@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { ImageUploader } from './ImageUploader';
+import { KDV_ORANLARI, birimKar, tl } from '@/lib/karlilik';
 import type { Category, Product } from '@/lib/types';
 
 type Props = { initial?: Product; initialCategoryIds?: string[]; categories: Category[]; initialBarkod?: string };
@@ -16,6 +17,9 @@ export function ProductForm({ initial, initialCategoryIds, categories, initialBa
   const [stok, setStok] = useState(initial?.stok ?? 0);
   const [barkod, setBarkod] = useState(initial?.barkod ?? initialBarkod ?? '');
   const [aciklama, setAciklama] = useState(initial?.aciklama ?? '');
+  const [kdvOrani, setKdvOrani] = useState<string>(initial?.kdv_orani == null ? '' : String(Number(initial.kdv_orani)));
+  // Alış fiyatı müşteriye açık products tablosunda değil, admin'e özel urun_maliyetleri'nde.
+  const [alisFiyati, setAlisFiyati] = useState('');
   const [categoryIds, setCategoryIds] = useState<string[]>(initialCategoryIds ?? []);
   const [altKategori, setAltKategori] = useState(initial?.alt_kategori ?? '');
   const [icon, setIcon] = useState(initial?.icon ?? '');
@@ -24,6 +28,18 @@ export function ProductForm({ initial, initialCategoryIds, categories, initialBa
   const [altKategoriSecenekleri, setAltKategoriSecenekleri] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!initial) return;
+    supabase
+      .from('urun_maliyetleri')
+      .select('alis_fiyati')
+      .eq('product_id', initial.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setAlisFiyati(String(Number(data.alis_fiyati)));
+      });
+  }, [initial]);
 
   useEffect(() => {
     supabase
@@ -53,6 +69,7 @@ export function ProductForm({ initial, initialCategoryIds, categories, initialBa
         stok,
         barkod: barkod || null,
         aciklama: aciklama.trim(),
+        kdv_orani: kdvOrani === '' ? null : Number(kdvOrani),
         alt_kategori: altKategori,
         icon,
         gorsel_url: gorselUrl,
@@ -83,6 +100,14 @@ export function ProductForm({ initial, initialCategoryIds, categories, initialBa
         .from('product_categories')
         .insert(categoryIds.map((category_id) => ({ product_id: productId, category_id })));
       if (linkError) throw linkError;
+
+      // Elle girilen alış fiyatı mevcut maliyetin yerine geçer (mal kabul ise ortalamayla günceller).
+      if (alisFiyati.trim() !== '') {
+        const { error: costError } = await supabase
+          .from('urun_maliyetleri')
+          .upsert({ product_id: productId, alis_fiyati: Number(alisFiyati) });
+        if (costError) throw costError;
+      }
 
       router.push('/products');
       router.refresh();
@@ -145,6 +170,37 @@ export function ProductForm({ initial, initialCategoryIds, categories, initialBa
           />
         </div>
       </div>
+      <div className="flex gap-4">
+        <div className="flex-1">
+          <label className="mb-1 block text-sm font-medium text-gray-700">KDV oranı</label>
+          <select
+            value={kdvOrani}
+            onChange={(e) => setKdvOrani(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+            <option value="">Seçilmedi</option>
+            {KDV_ORANLARI.map((o) => (
+              <option key={o} value={o}>
+                %{o}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex-1">
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            Alış fiyatı <span className="font-normal text-gray-400">(KDV hariç)</span>
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={alisFiyati}
+            onChange={(e) => setAlisFiyati(e.target.value)}
+            placeholder="Girilmedi"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          />
+        </div>
+      </div>
+      <KarOnizleme fiyat={fiyat} kdvOrani={kdvOrani} alisFiyati={alisFiyati} />
       <div>
         <label className="mb-1 block text-sm font-medium text-gray-700">Barkod</label>
         <input
@@ -207,5 +263,26 @@ export function ProductForm({ initial, initialCategoryIds, categories, initialBa
         {saving ? 'Kaydediliyor...' : 'Kaydet'}
       </button>
     </form>
+  );
+}
+
+function KarOnizleme({ fiyat, kdvOrani, alisFiyati }: { fiyat: number; kdvOrani: string; alisFiyati: string }) {
+  if (kdvOrani === '' || alisFiyati.trim() === '') {
+    return (
+      <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
+        Kâr marjını görmek için KDV oranı ve alış fiyatını girin.
+      </p>
+    );
+  }
+  const k = birimKar(fiyat, Number(kdvOrani), Number(alisFiyati))!;
+  const zarar = k.kar < 0;
+  return (
+    <p
+      className={`rounded-lg px-3 py-2 text-sm font-semibold ${
+        zarar ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-800'
+      }`}>
+      {zarar ? '⚠️ ZARARINA SATIŞ: ' : ''}KDV hariç satış {tl(k.net)} · birim kâr {tl(k.kar)} · marj %
+      {k.marj.toFixed(1)}
+    </p>
   );
 }

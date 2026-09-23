@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { BarkodGiris } from '@/components/BarkodGiris';
+import { birimKar, tl } from '@/lib/karlilik';
 import { supabase } from '@/lib/supabase';
 import type { Category, ProductWithCategories } from '@/lib/types';
 
@@ -11,6 +12,7 @@ export default function ProductsPage() {
   const router = useRouter();
   const [products, setProducts] = useState<ProductWithCategories[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [maliyetler, setMaliyetler] = useState<Record<string, number>>({});
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [loading, setLoading] = useState(true);
@@ -24,6 +26,10 @@ export default function ProductsPage() {
         .order('created_at', { ascending: false }),
       supabase.from('categories').select('*').order('sira', { ascending: true }),
     ]);
+    const { data: maliyetData } = await supabase.from('urun_maliyetleri').select('product_id, alis_fiyati');
+    setMaliyetler(
+      Object.fromEntries((maliyetData ?? []).map((m: { product_id: string; alis_fiyati: number }) => [m.product_id, Number(m.alis_fiyati)]))
+    );
     if (prodErr) setError(prodErr.message);
     else setProducts((prodData as ProductWithCategories[]) ?? []);
     if (catErr) setError(catErr.message);
@@ -123,6 +129,8 @@ export default function ProductsPage() {
                 <th className="px-4 py-2 text-left font-semibold text-gray-600">Ürün</th>
                 <th className="px-4 py-2 text-left font-semibold text-gray-600">Kategoriler</th>
                 <th className="px-4 py-2 text-left font-semibold text-gray-600">Fiyat</th>
+                <th className="px-4 py-2 text-left font-semibold text-gray-600">Alış (KDV hariç)</th>
+                <th className="px-4 py-2 text-left font-semibold text-gray-600">Marj</th>
                 <th className="px-4 py-2 text-left font-semibold text-gray-600">Stok</th>
                 <th className="px-4 py-2 text-left font-semibold text-gray-600">Durum</th>
                 <th className="px-4 py-2"></th>
@@ -149,6 +157,12 @@ export default function ProductsPage() {
                     </div>
                   </td>
                   <td className="px-4 py-2 text-gray-600">{Number(p.fiyat).toFixed(2)} TL</td>
+                  <td className="px-4 py-2 text-gray-600">
+                    {maliyetler[p.id] != null ? tl(maliyetler[p.id]) : <span className="text-amber-600">Girilmedi</span>}
+                  </td>
+                  <td className="px-4 py-2">
+                    <MarjEtiketi fiyat={Number(p.fiyat)} kdvOrani={p.kdv_orani} alis={maliyetler[p.id] ?? null} />
+                  </td>
                   <td className="px-4 py-2 text-gray-600">{p.stok}</td>
                   <td className="px-4 py-2">
                     <button
@@ -171,7 +185,7 @@ export default function ProductsPage() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
+                  <td colSpan={8} className="px-4 py-6 text-center text-gray-400">
                     Ürün bulunamadı.
                   </td>
                 </tr>
@@ -181,5 +195,19 @@ export default function ProductsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function MarjEtiketi({ fiyat, kdvOrani, alis }: { fiyat: number; kdvOrani: number | null; alis: number | null }) {
+  if (kdvOrani == null) return <span className="text-xs text-amber-600">KDV yok</span>;
+  const k = birimKar(fiyat, Number(kdvOrani), alis);
+  if (!k) return <span className="text-gray-300">-</span>;
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+        k.kar < 0 ? 'bg-red-100 text-red-700' : k.marj < 10 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+      }`}>
+      %{k.marj.toFixed(1)}
+    </span>
   );
 }

@@ -3,17 +3,20 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { BarkodGiris } from '@/components/BarkodGiris';
+import { tl } from '@/lib/karlilik';
 import { basariSesi, hataSesi } from '@/lib/ses';
 import { supabase } from '@/lib/supabase';
 import type { Product } from '@/lib/types';
 
 type Mod = 'ekle' | 'sayim';
-type Satir = { product: Product; miktar: number };
+// birimAlis: mal kabulde girilen KDV hariç birim alış fiyatı ('' = girilmedi, maliyet değişmez).
+type Satir = { product: Product; miktar: number; birimAlis: string };
 
 const MOD_BILGI: Record<Mod, { baslik: string; aciklama: string; sutun: string }> = {
   ekle: {
     baslik: 'Mal Kabul',
-    aciklama: 'Gelen ürünleri okutun; her okutma 1 adet ekler. Kaydedince mevcut stoğun üzerine eklenir.',
+    aciklama:
+      'Gelen ürünleri okutun; her okutma 1 adet ekler. Faturadaki KDV hariç birim alış fiyatını girerseniz ürün maliyeti ağırlıklı ortalamayla güncellenir.',
     sutun: 'Eklenecek',
   },
   sayim: {
@@ -26,13 +29,22 @@ const MOD_BILGI: Record<Mod, { baslik: string; aciklama: string; sutun: string }
 export default function StockPage() {
   const [mod, setMod] = useState<Mod>('ekle');
   const [urunler, setUrunler] = useState<Product[]>([]);
+  const [maliyetler, setMaliyetler] = useState<Record<string, number>>({});
   const [satirlar, setSatirlar] = useState<Satir[]>([]);
   const [uyari, setUyari] = useState<{ tip: 'hata' | 'basari'; mesaj: string; barkod?: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
   const urunleriYukle = async () => {
-    const { data } = await supabase.from('products').select('*');
+    const [{ data }, { data: maliyetData }] = await Promise.all([
+      supabase.from('products').select('*'),
+      supabase.from('urun_maliyetleri').select('product_id, alis_fiyati'),
+    ]);
     setUrunler((data as Product[]) ?? []);
+    setMaliyetler(
+      Object.fromEntries(
+        (maliyetData ?? []).map((m: { product_id: string; alis_fiyati: number }) => [m.product_id, Number(m.alis_fiyati)])
+      )
+    );
   };
 
   useEffect(() => {
@@ -53,12 +65,15 @@ export default function StockPage() {
     setSatirlar((prev) =>
       prev.some((s) => s.product.id === product.id)
         ? prev.map((s) => (s.product.id === product.id ? { ...s, miktar: s.miktar + 1 } : s))
-        : [{ product, miktar: 1 }, ...prev]
+        : [{ product, miktar: 1, birimAlis: '' }, ...prev]
     );
   };
 
   const miktarDegistir = (id: string, miktar: number) =>
     setSatirlar((prev) => prev.map((s) => (s.product.id === id ? { ...s, miktar: Math.max(0, miktar) } : s)));
+
+  const alisDegistir = (id: string, birimAlis: string) =>
+    setSatirlar((prev) => prev.map((s) => (s.product.id === id ? { ...s, birimAlis } : s)));
 
   const modDegistir = (yeni: Mod) => {
     if (yeni === mod) return;
@@ -76,10 +91,22 @@ export default function StockPage() {
     if (!window.confirm(`${ozet} Onaylıyor musunuz?`)) return;
 
     setSaving(true);
-    const { error } = await supabase.rpc('stok_guncelle', {
-      p_kalemler: satirlar.map((s) => ({ product_id: s.product.id, miktar: s.miktar })),
-      p_mod: mod,
-    });
+    // Mal kabul maliyeti de günceller (mal_kabul), sayım yalnızca stoğu eşitler (stok_guncelle).
+    const { error } =
+      mod === 'ekle'
+        ? await supabase.rpc('mal_kabul', {
+            p_kalemler: satirlar
+              .filter((s) => s.miktar > 0)
+              .map((s) => ({
+                product_id: s.product.id,
+                miktar: s.miktar,
+                birim_alis: s.birimAlis.trim() === '' ? null : Number(s.birimAlis),
+              })),
+          })
+        : await supabase.rpc('stok_guncelle', {
+            p_kalemler: satirlar.map((s) => ({ product_id: s.product.id, miktar: s.miktar })),
+            p_mod: mod,
+          });
     setSaving(false);
     if (error) {
       hataSesi();
@@ -139,11 +166,17 @@ export default function StockPage() {
                 <th className="px-4 py-2 text-right font-semibold text-gray-600">Mevcut</th>
                 <th className="px-4 py-2 text-right font-semibold text-gray-600">{bilgi.sutun}</th>
                 <th className="px-4 py-2 text-right font-semibold text-gray-600">Yeni Stok</th>
+                {mod === 'ekle' && (
+                  <>
+                    <th className="px-4 py-2 text-right font-semibold text-gray-600">Mevcut Maliyet</th>
+                    <th className="px-4 py-2 text-right font-semibold text-gray-600">Birim Alış (KDV hariç)</th>
+                  </>
+                )}
                 <th className="px-4 py-2"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {satirlar.map(({ product, miktar }) => {
+              {satirlar.map(({ product, miktar, birimAlis }) => {
                 const yeniStok = mod === 'ekle' ? product.stok + miktar : miktar;
                 return (
                   <tr key={product.id}>
@@ -165,6 +198,24 @@ export default function StockPage() {
                       }`}>
                       {yeniStok}
                     </td>
+                    {mod === 'ekle' && (
+                      <>
+                        <td className="px-4 py-2 text-right text-gray-600">
+                          {maliyetler[product.id] != null ? tl(maliyetler[product.id]) : '-'}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={birimAlis}
+                            onChange={(e) => alisDegistir(product.id, e.target.value)}
+                            placeholder="Boş"
+                            className="w-24 rounded border border-gray-300 px-2 py-1 text-right"
+                          />
+                        </td>
+                      </>
+                    )}
                     <td className="px-4 py-2 text-right">
                       <button
                         onClick={() => setSatirlar((prev) => prev.filter((s) => s.product.id !== product.id))}
