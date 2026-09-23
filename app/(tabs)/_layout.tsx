@@ -1,11 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCart } from '@/context/cart-context';
 
 export default function TabLayout() {
   const { totalCount } = useCart();
+  // 3 tuşlu Android gezinmesinde (ve iPhone ana çubuğunda) sekmeler sistem alanının
+  // altında kalıyordu; yükseklik ve alt boşluk bu alan kadar artırılır.
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -17,9 +21,9 @@ export default function TabLayout() {
         tabBarActiveTintColor: '#1abc6e',
         tabBarInactiveTintColor: '#9aa5b1',
         tabBarStyle: {
-          height: 64,
+          height: 64 + insets.bottom,
           paddingTop: 6,
-          paddingBottom: 10,
+          paddingBottom: 10 + insets.bottom,
           borderTopWidth: 0,
           elevation: 8,
           shadowColor: '#000',
