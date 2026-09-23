@@ -14,7 +14,18 @@ export type Product = {
   icon: string;
   gorsel: string;
   aktif: boolean;
+  aciklama: string;
 };
+
+// Admin panelden ayarlanır (market_ayarlari, migration-007). Asıl kontrol
+// siparis_olustur() içinde; buradaki değerler sepette bilgi göstermek için.
+export type MarketAyarlari = {
+  minSepetTutari: number;
+  teslimatUcreti: number;
+  ucretsizTeslimatEsigi: number | null;
+};
+
+const VARSAYILAN_AYARLAR: MarketAyarlari = { minSepetTutari: 0, teslimatUcreti: 0, ucretsizTeslimatEsigi: null };
 
 // UI-only sentinel — DB'de karşılığı yok. data/products.ts'teki aynı Unsplash URL'i kullanır.
 const TUMU_CATEGORY: Category = {
@@ -29,6 +40,7 @@ const TUMU_CATEGORY: Category = {
 type CatalogContextType = {
   categories: Category[];
   products: Product[];
+  ayarlar: MarketAyarlari;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -39,6 +51,7 @@ const CatalogContext = createContext<CatalogContextType | undefined>(undefined);
 export function CatalogProvider({ children }: { children: ReactNode }) {
   const [categories, setCategories] = useState<Category[]>([TUMU_CATEGORY]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [ayarlar, setAyarlar] = useState<MarketAyarlari>(VARSAYILAN_AYARLAR);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,12 +59,17 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const [{ data: catData, error: catErr }, { data: prodData, error: prodErr }] = await Promise.all([
+      const [
+        { data: catData, error: catErr },
+        { data: prodData, error: prodErr },
+        { data: ayarData },
+      ] = await Promise.all([
         supabase.from('categories').select('*').order('sira', { ascending: true }),
         supabase
           .from('products')
           .select('*, product_categories(category_id)')
           .eq('aktif', true),
+        supabase.from('market_ayarlari').select('*').maybeSingle(),
       ]);
       if (catErr) throw catErr;
       if (prodErr) throw prodErr;
@@ -78,8 +96,17 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
           icon: p.icon,
           gorsel: p.gorsel_url,
           aktif: p.aktif,
+          aciklama: p.aciklama ?? '',
         }))
       );
+      if (ayarData) {
+        setAyarlar({
+          minSepetTutari: Number(ayarData.min_sepet_tutari),
+          teslimatUcreti: Number(ayarData.teslimat_ucreti),
+          ucretsizTeslimatEsigi:
+            ayarData.ucretsiz_teslimat_esigi == null ? null : Number(ayarData.ucretsiz_teslimat_esigi),
+        });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ürünler yüklenemedi');
     } finally {
@@ -94,7 +121,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <CatalogContext.Provider value={{ categories, products, loading, error, refresh: fetchCatalog }}>
+    <CatalogContext.Provider value={{ categories, products, ayarlar, loading, error, refresh: fetchCatalog }}>
       {children}
     </CatalogContext.Provider>
   );

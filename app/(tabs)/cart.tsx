@@ -1,42 +1,63 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/context/auth-context';
 import { useCart, type CartItem } from '@/context/cart-context';
+import { useCatalog } from '@/context/catalog-context';
 import { ODEME_YONTEMLERI, type OdemeYontemi } from '@/lib/odeme-yontemleri';
 import { supabase } from '@/lib/supabase';
+
+type Adres = { id: string; baslik: string; sokak: string; bina_no: string; daire_no: string; mahalle: string };
+
+const tl = (n: number) => `${n.toFixed(2).replace(/\.00$/, '')} ₺`;
 
 export default function CartScreen() {
   const { user, profile } = useAuth();
   const { items, increase, decrease, removeFromCart, totalPrice, totalCount, placeOrder } = useCart();
+  const { products, ayarlar } = useCatalog();
   const [gonderiliyor, setGonderiliyor] = useState(false);
   const [odemeYontemi, setOdemeYontemi] = useState<OdemeYontemi>('kapida_nakit');
+  const [adres, setAdres] = useState<Adres | null>(null);
 
   // Profildeki varsayılan ödeme yöntemi yüklenince sepette ön-seçili gelsin.
   useEffect(() => {
     if (profile?.tercih_odeme_yontemi) setOdemeYontemi(profile.tercih_odeme_yontemi);
   }, [profile?.tercih_odeme_yontemi]);
 
+  // Adres ekranından dönünce (ekleme / varsayılan değiştirme) güncel adres görünsün.
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) {
+        setAdres(null);
+        return;
+      }
+      supabase
+        .from('addresses')
+        .select('id, baslik, sokak, bina_no, daire_no, mahalle')
+        .order('varsayilan', { ascending: false })
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+        .then(({ data }) => setAdres(data));
+    }, [user])
+  );
+
+  // Gösterim için; asıl hesap siparis_olustur() içinde yapılır.
+  const { minSepetTutari, teslimatUcreti, ucretsizTeslimatEsigi } = ayarlar;
+  const ucretsizTeslimat = ucretsizTeslimatEsigi != null && totalPrice >= ucretsizTeslimatEsigi;
+  const teslimat = ucretsizTeslimat ? 0 : teslimatUcreti;
+  const minEksik = Math.max(minSepetTutari - totalPrice, 0);
+  const ucretsizaKalan = ucretsizTeslimatEsigi != null && !ucretsizTeslimat ? ucretsizTeslimatEsigi - totalPrice : 0;
+
   const handleSiparisTamamla = async () => {
     if (!user) {
       router.push('/auth');
       return;
     }
-
-    setGonderiliyor(true);
-    const { data: adres } = await supabase
-      .from('addresses')
-      .select('*')
-      .order('varsayilan', { ascending: false })
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
     if (!adres) {
-      setGonderiliyor(false);
       Alert.alert('Adres gerekli', 'Sipariş verebilmek için önce bir teslimat adresi eklemelisiniz.', [
         { text: 'Vazgeç', style: 'cancel' },
         { text: 'Adres Ekle', onPress: () => router.push('/addresses') },
@@ -44,11 +65,9 @@ export default function CartScreen() {
       return;
     }
 
-    const daire = adres.daire_no ? ` D:${adres.daire_no}` : '';
-    const teslimatAdresi = `${adres.sokak} No:${adres.bina_no}${daire}, ${adres.mahalle} Mah., Cumayeri/Düzce`;
-
+    setGonderiliyor(true);
     try {
-      const orderId = await placeOrder(teslimatAdresi, odemeYontemi);
+      const orderId = await placeOrder(adres.id, odemeYontemi);
       router.push({ pathname: '/order-confirmation', params: { orderId } });
     } catch (e) {
       Alert.alert('Sipariş oluşturulamadı', e instanceof Error ? e.message : 'Bilinmeyen bir hata oluştu.');
@@ -89,11 +108,39 @@ export default function CartScreen() {
         keyExtractor={(item) => item.product.id}
         contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 4 }}
         renderItem={({ item }) => (
-          <CartRow item={item} onIncrease={increase} onDecrease={decrease} onRemove={removeFromCart} />
+          <CartRow
+            item={item}
+            stok={products.find((p) => p.id === item.product.id)?.stok ?? item.product.stok}
+            onIncrease={increase}
+            onDecrease={decrease}
+            onRemove={removeFromCart}
+          />
         )}
       />
 
       <View className="border-t border-gray-100 bg-white px-5 pb-6 pt-4">
+        {user && (
+          <Pressable
+            onPress={() => router.push('/addresses')}
+            className="mb-3 flex-row items-center rounded-2xl bg-surface px-3 py-3"
+            style={{ gap: 10 }}>
+            <Ionicons name="location-outline" size={18} color="#1abc6e" />
+            <View className="flex-1">
+              {adres ? (
+                <>
+                  <Text className="text-xs font-semibold text-gray-500">Teslimat: {adres.baslik}</Text>
+                  <Text className="text-sm text-gray-800" numberOfLines={1}>
+                    {adres.sokak} No:{adres.bina_no}
+                    {adres.daire_no ? ` D:${adres.daire_no}` : ''}, {adres.mahalle} Mah.
+                  </Text>
+                </>
+              ) : (
+                <Text className="text-sm font-semibold text-gray-700">Teslimat adresi ekleyin</Text>
+              )}
+            </View>
+            <Text className="text-xs font-bold text-primary-600">{adres ? 'Değiştir' : 'Ekle'}</Text>
+          </Pressable>
+        )}
         <Text className="mb-2 text-sm font-semibold text-gray-700">Ödeme Yöntemi</Text>
         <View className="mb-4 flex-row" style={{ gap: 10 }}>
           {ODEME_YONTEMLERI.map((o) => {
@@ -115,19 +162,48 @@ export default function CartScreen() {
           })}
         </View>
         <View className="flex-row items-center justify-between">
-          <Text className="text-base text-gray-500">Toplam</Text>
-          <Text className="text-2xl font-extrabold text-gray-900">{totalPrice} ₺</Text>
+          <Text className="text-sm text-gray-500">Ara Toplam</Text>
+          <Text className="text-sm font-semibold text-gray-700">{tl(totalPrice)}</Text>
         </View>
+        <View className="mt-1 flex-row items-center justify-between">
+          <Text className="text-sm text-gray-500">Teslimat Ücreti</Text>
+          <Text className={`text-sm font-semibold ${teslimat === 0 ? 'text-primary-600' : 'text-gray-700'}`}>
+            {teslimat === 0 ? 'Ücretsiz' : tl(teslimat)}
+          </Text>
+        </View>
+        {ucretsizaKalan > 0 && (
+          <Text className="mt-1 text-xs text-primary-600">
+            {tl(ucretsizaKalan)} daha ekleyin, teslimat ücretsiz olsun.
+          </Text>
+        )}
+        <View className="mt-2 flex-row items-center justify-between">
+          <Text className="text-base text-gray-500">Toplam</Text>
+          <Text className="text-2xl font-extrabold text-gray-900">{tl(totalPrice + teslimat)}</Text>
+        </View>
+        {minEksik > 0 && (
+          <Text className="mt-2 text-center text-xs font-semibold text-accent">
+            Minimum sipariş tutarı {tl(minSepetTutari)}. Sepetinize {tl(minEksik)} daha ekleyin.
+          </Text>
+        )}
         <Pressable
           onPress={handleSiparisTamamla}
-          disabled={gonderiliyor}
-          className="mt-4 items-center rounded-2xl bg-primary-500 py-4">
+          disabled={gonderiliyor || minEksik > 0}
+          className={`mt-4 items-center rounded-2xl py-4 ${minEksik > 0 ? 'bg-gray-300' : 'bg-primary-500'}`}>
           {gonderiliyor ? (
             <ActivityIndicator color="white" />
           ) : (
             <Text className="text-base font-bold text-white">Siparişi Tamamla</Text>
           )}
         </Pressable>
+        <Text className="mt-2 text-center text-[11px] text-gray-400">
+          Siparişi tamamlayarak{' '}
+          <Text
+            className="font-semibold text-gray-500 underline"
+            onPress={() => router.push({ pathname: '/yasal/[sayfa]', params: { sayfa: 'mesafeli-satis' } })}>
+            Mesafeli Satış Sözleşmesi
+          </Text>
+          &apos;ni kabul etmiş olursunuz.
+        </Text>
       </View>
     </SafeAreaView>
   );
@@ -135,16 +211,19 @@ export default function CartScreen() {
 
 function CartRow({
   item,
+  stok,
   onIncrease,
   onDecrease,
   onRemove,
 }: {
   item: CartItem;
+  stok: number;
   onIncrease: (id: string) => void;
   onDecrease: (id: string) => void;
   onRemove: (id: string) => void;
 }) {
   const { product, miktar } = item;
+  const stokDoldu = miktar >= stok;
 
   return (
     <View className="flex-row items-center rounded-3xl bg-white p-3 shadow-sm">
@@ -158,6 +237,11 @@ function CartRow({
         </Text>
         <Text className="mt-0.5 text-xs text-gray-400">{product.altKategori}</Text>
         <Text className="mt-1 text-sm font-semibold text-primary-600">{product.fiyat} ₺</Text>
+        {miktar > stok && (
+          <Text className="mt-0.5 text-xs font-semibold text-accent">
+            {stok <= 0 ? 'Tükendi, sepetten çıkarın' : `Stokta ${stok} adet kaldı`}
+          </Text>
+        )}
       </View>
 
       <View className="items-end">
@@ -173,8 +257,9 @@ function CartRow({
           <Text className="mx-3 text-sm font-bold text-gray-900">{miktar}</Text>
           <Pressable
             onPress={() => onIncrease(product.id)}
+            disabled={stokDoldu}
             className="h-8 w-8 items-center justify-center rounded-full bg-white">
-            <Ionicons name="add" size={16} color="#1abc6e" />
+            <Ionicons name="add" size={16} color={stokDoldu ? '#cbd5e1' : '#1abc6e'} />
           </Pressable>
         </View>
       </View>

@@ -25,10 +25,10 @@ export async function telefonBildirimiGoster(baslik: string, mesaj: string, resi
     body: mesaj,
     android: {
       channelId: SIPARIS_KANAL_ID,
-      largeIcon: resimUrl,
       pressAction: { id: 'default' },
+      // notifee, anahtar varsa değeri undefined olsa bile reddediyor; görsel yoksa hiç ekleme.
       ...(resimUrl
-        ? { style: { type: AndroidStyle.BIGPICTURE, picture: resimUrl } }
+        ? { largeIcon: resimUrl, style: { type: AndroidStyle.BIGPICTURE, picture: resimUrl } }
         : {}),
     },
   });

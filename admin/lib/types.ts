@@ -18,6 +18,7 @@ export type Product = {
   icon: string;
   gorsel_url: string;
   aktif: boolean;
+  aciklama: string;
   created_at?: string;
   updated_at?: string;
 };
@@ -26,7 +27,7 @@ export type ProductWithCategories = Product & {
   product_categories: { category_id: string; categories: { ad: string } | null }[];
 };
 
-export type OrderStatus = 'alindi' | 'hazirlaniyor' | 'yolda' | 'kapinda';
+export type OrderStatus = 'alindi' | 'hazirlaniyor' | 'yolda' | 'kapinda' | 'iptal';
 
 export type OdemeYontemi = 'kapida_nakit' | 'kapida_kart';
 
@@ -40,6 +41,13 @@ export type OrderItem = {
   miktar: number;
 };
 
+export type MarketAyarlari = {
+  min_sepet_tutari: number;
+  teslimat_ucreti: number;
+  ucretsiz_teslimat_esigi: number | null;
+  updated_at?: string;
+};
+
 export type OrderWithItems = {
   id: string;
   device_id: string | null;
@@ -50,6 +58,8 @@ export type OrderWithItems = {
   teslimat_adresi: string | null;
   odeme_yontemi: OdemeYontemi;
   durum: OrderStatus;
+  ara_toplam: number;
+  teslimat_ucreti: number;
   toplam: number;
   created_at: string;
   updated_at: string;

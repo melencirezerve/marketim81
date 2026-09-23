@@ -32,6 +32,9 @@ export function Nav() {
           <Link href="/categories" className={linkClass('/categories')}>
             Kategoriler
           </Link>
+          <Link href="/settings" className={linkClass('/settings')}>
+            Ayarlar
+          </Link>
           <button
             onClick={handleSignOut}
             className="ml-4 rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">

@@ -15,6 +15,7 @@ export function ProductForm({ initial, initialCategoryIds, categories }: Props) 
   const [fiyat, setFiyat] = useState(Number(initial?.fiyat ?? 0));
   const [stok, setStok] = useState(initial?.stok ?? 0);
   const [barkod, setBarkod] = useState(initial?.barkod ?? '');
+  const [aciklama, setAciklama] = useState(initial?.aciklama ?? '');
   const [categoryIds, setCategoryIds] = useState<string[]>(initialCategoryIds ?? []);
   const [altKategori, setAltKategori] = useState(initial?.alt_kategori ?? '');
   const [icon, setIcon] = useState(initial?.icon ?? '');
@@ -51,6 +52,7 @@ export function ProductForm({ initial, initialCategoryIds, categories }: Props) 
         fiyat,
         stok,
         barkod: barkod || null,
+        aciklama: aciklama.trim(),
         alt_kategori: altKategori,
         icon,
         gorsel_url: gorselUrl,
@@ -99,6 +101,17 @@ export function ProductForm({ initial, initialCategoryIds, categories }: Props) 
           value={ad}
           onChange={(e) => setAd(e.target.value)}
           required
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+        />
+      </div>
+      <div>
+        <label className="mb-1 block text-sm font-medium text-gray-700">
+          Açıklama <span className="font-normal text-gray-400">(ürün detay sayfasında görünür)</span>
+        </label>
+        <textarea
+          value={aciklama}
+          onChange={(e) => setAciklama(e.target.value)}
+          rows={3}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
         />
       </div>

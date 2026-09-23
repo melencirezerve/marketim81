@@ -15,7 +15,7 @@ const sss = [
   },
   {
     soru: 'Ödeme yöntemlerim güvende mi?',
-    cevap: 'Evet, kart bilgileriniz güvenli şekilde saklanır ve hiçbir zaman üçüncü taraflarla paylaşılmaz.',
+    cevap: 'Şu an yalnızca kapıda ödeme (nakit veya kart) kabul ediyoruz; kart bilgileriniz uygulamada veya sunucularımızda saklanmaz.',
   },
   {
     soru: 'Hasarlı veya eksik ürün gelirse ne yapmalıyım?',

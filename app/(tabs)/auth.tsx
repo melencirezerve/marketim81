@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -26,10 +26,14 @@ export default function AuthScreen() {
   const [hata, setHata] = useState<string | null>(null);
   const [gonderiliyor, setGonderiliyor] = useState(false);
 
-  // Sekme ekranı kapanınca unmount olmuyor; her açılışta akışı baştan başlat,
-  // yoksa önceki oturumdan kalan adım (ör. "ad") ve girdiler geri gelir.
+  // Sekme ekranı kapanınca unmount olmuyor; akış yarıda kaldıysa (kod/ad adımı)
+  // bir sonraki açılışta baştan başlat, yoksa önceki oturumun "ad" adımı geri
+  // gelir. Telefon adımındayken (ör. yasal metne bakıp dönünce) girilen numara kalsın.
+  const adimRef = useRef(adim);
+  adimRef.current = adim;
   useFocusEffect(
     useCallback(() => {
+      if (adimRef.current === 'telefon') return;
       setAdim('telefon');
       setTelefon('');
       setKod('');
@@ -158,6 +162,24 @@ export default function AuthScreen() {
               className="rounded-2xl bg-white px-4 py-3 text-sm text-gray-900 shadow-sm"
             />
           </>
+        )}
+
+        {adim === 'telefon' && (
+          <Text className="text-xs leading-5 text-gray-400">
+            Devam ederek{' '}
+            <Text
+              className="font-semibold text-gray-500 underline"
+              onPress={() => router.push({ pathname: '/yasal/[sayfa]', params: { sayfa: 'kullanim' } })}>
+              Kullanım Şartları
+            </Text>
+            &apos;nı kabul etmiş ve{' '}
+            <Text
+              className="font-semibold text-gray-500 underline"
+              onPress={() => router.push({ pathname: '/yasal/[sayfa]', params: { sayfa: 'kvkk' } })}>
+              KVKK Aydınlatma Metni
+            </Text>
+            &apos;ni okumuş olursunuz.
+          </Text>
         )}
 
         {hata && <Text className="text-sm text-red-500">{hata}</Text>}

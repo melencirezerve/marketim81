@@ -9,6 +9,9 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      // Gizli ekranlar (ürün/sipariş detayı, yasal metinler) da sekme olduğu için
+      // "geri" varsayılan olarak ilk sekmeye (Market) dönüyordu; açıldığı ekrana dönsün.
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: '#1abc6e',
@@ -81,6 +84,9 @@ export default function TabLayout() {
       <Tabs.Screen name="settings" options={{ href: null }} />
       <Tabs.Screen name="help" options={{ href: null }} />
       <Tabs.Screen name="notification-center" options={{ href: null }} />
+      <Tabs.Screen name="urun/[id]" options={{ href: null }} />
+      <Tabs.Screen name="siparis/[id]" options={{ href: null }} />
+      <Tabs.Screen name="yasal/[sayfa]" options={{ href: null }} />
     </Tabs>
   );
 }

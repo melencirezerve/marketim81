@@ -21,6 +21,7 @@ type AuthContextValue = {
   verifyOtp: (telefon: string, kod: string) => Promise<{ error: string | null; adGerekli: boolean }>;
   setAd: (ad: string) => Promise<string | null>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<string | null>;
   setTercihOdemeYontemi: (yontem: OdemeYontemi) => Promise<string | null>;
 };
 
@@ -76,6 +77,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  // Kişisel veriler silinir, sipariş kayıtları anonimleşir (bkz. migration-007 hesabimi_sil).
+  const deleteAccount = async () => {
+    const { error } = await supabase.rpc('hesabimi_sil');
+    if (error) return error.message;
+    await supabase.auth.signOut();
+    return null;
+  };
+
   const setTercihOdemeYontemi = async (yontem: OdemeYontemi) => {
     if (!session) return 'Giriş yapmalısınız.';
     const { error } = await supabase
@@ -89,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, user: session?.user ?? null, profile, loading, sendOtp, verifyOtp, setAd, signOut, setTercihOdemeYontemi }}>
+      value={{ session, user: session?.user ?? null, profile, loading, sendOtp, verifyOtp, setAd, signOut, deleteAccount, setTercihOdemeYontemi }}>
       {children}
     </AuthContext.Provider>
   );

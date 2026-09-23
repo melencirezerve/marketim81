@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { OdemeYontemi, OrderStatus, OrderWithItems } from '@/lib/types';
 
@@ -14,9 +14,32 @@ const DURUM_META: Record<OrderStatus, { label: string; className: string }> = {
   hazirlaniyor: { label: 'Hazırlanıyor', className: 'bg-amber-100 text-amber-700' },
   yolda: { label: 'Yolda', className: 'bg-purple-100 text-purple-700' },
   kapinda: { label: 'Kapında', className: 'bg-emerald-100 text-emerald-700' },
+  iptal: { label: 'İptal Edildi', className: 'bg-gray-200 text-gray-600' },
 };
 
-const DURUM_SIRASI: OrderStatus[] = ['alindi', 'hazirlaniyor', 'yolda', 'kapinda'];
+const DURUM_SIRASI: OrderStatus[] = ['alindi', 'hazirlaniyor', 'yolda', 'kapinda', 'iptal'];
+
+const SIPARIS_SORGUSU = '*, order_items(*)';
+
+// Ses dosyası gerektirmeden kısa bir "ding-dong" (Web Audio). Tarayıcılar sesi
+// ancak sayfayla bir etkileşimden sonra çalar; uyarı bandı her durumda görünür.
+function yeniSiparisSesi() {
+  try {
+    const ctx = new AudioContext();
+    [880, 660].forEach((frekans, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = frekans;
+      gain.gain.setValueAtTime(0.25, ctx.currentTime + i * 0.25);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.25 + 0.4);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime + i * 0.25);
+      osc.stop(ctx.currentTime + i * 0.25 + 0.4);
+    });
+  } catch {
+    // Ses çalınamazsa görsel uyarı yeterli.
+  }
+}
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
@@ -25,11 +48,15 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [yeniSiparisler, setYeniSiparisler] = useState<string[]>([]);
+  const [iptalEdilenler, setIptalEdilenler] = useState<string[]>([]);
+  // Admin'in bu sayfadan kendi yaptığı iptaller için "müşteri iptal etti" uyarısı çıkmasın.
+  const kendiIptallerim = useRef(new Set<string>());
 
   const load = async () => {
     const { data, error: fetchError } = await supabase
       .from('orders')
-      .select('*, order_items(*)')
+      .select(SIPARIS_SORGUSU)
       .order('created_at', { ascending: false });
     if (fetchError) setError(fetchError.message);
     else setOrders((data as OrderWithItems[]) ?? []);
@@ -41,7 +68,44 @@ export default function OrdersPage() {
     // the indirection — safe here since deps are empty (mount-only fetch).
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
+
+    // Yeni sipariş ve başka sekmeden/iptalden gelen durum değişiklikleri anında görünsün.
+    const kanal = supabase
+      // Benzersiz ad: aynı adlı kanal varsa supabase onu döndürür; Strict Mode'da efekt
+      // iki kez çalışınca yeni abonelik, kaldırılmakta olan eskisine takılıyordu.
+      .channel(`admin-siparisler-${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, async (payload) => {
+        const id = (payload.new as { id: string }).id;
+        // order_items aynı işlemde yazılıyor; kalemleriyle birlikte çek.
+        const { data } = await supabase.from('orders').select(SIPARIS_SORGUSU).eq('id', id).single();
+        if (!data) return;
+        setOrders((prev) => (prev.some((o) => o.id === id) ? prev : [data as OrderWithItems, ...prev]));
+        setYeniSiparisler((prev) => [...prev, id]);
+        yeniSiparisSesi();
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
+        const yeni = payload.new as OrderWithItems;
+        setOrders((prev) => prev.map((o) => (o.id === yeni.id ? { ...o, ...yeni, order_items: o.order_items } : o)));
+        if (yeni.durum === 'iptal') {
+          // İptal edilen sipariş artık "yeni sipariş" değil; hazırlanmasın diye ayrıca uyar.
+          setYeniSiparisler((prev) => prev.filter((id) => id !== yeni.id));
+          if (!kendiIptallerim.current.has(yeni.id)) {
+            setIptalEdilenler((prev) => (prev.includes(yeni.id) ? prev : [...prev, yeni.id]));
+            yeniSiparisSesi();
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(kanal);
+    };
   }, []);
+
+  useEffect(() => {
+    const uyari = yeniSiparisler.length + iptalEdilenler.length;
+    document.title = uyari > 0 ? `(${uyari}) Siparişlerde değişiklik!` : 'Siparis81 Admin';
+  }, [yeniSiparisler, iptalEdilenler]);
 
   const filtered = useMemo(
     () => (statusFilter ? orders.filter((o) => o.durum === statusFilter) : orders),
@@ -58,9 +122,20 @@ export default function OrdersPage() {
   };
 
   const changeStatus = async (order: OrderWithItems, durum: OrderStatus) => {
+    if (
+      durum === 'iptal' &&
+      !window.confirm(`${order.id} iptal edilsin mi? Ürünler stoğa geri eklenir ve bu işlem geri alınamaz.`)
+    ) {
+      return;
+    }
     setUpdatingId(order.id);
+    setError(null);
+    if (durum === 'iptal') kendiIptallerim.current.add(order.id);
     const { error: updateError } = await supabase.from('orders').update({ durum }).eq('id', order.id);
-    if (updateError) setError(updateError.message);
+    if (updateError) {
+      kendiIptallerim.current.delete(order.id);
+      setError(updateError.message);
+    }
     else setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, durum } : o)));
     setUpdatingId(null);
   };
@@ -84,6 +159,32 @@ export default function OrdersPage() {
           ))}
         </select>
       </div>
+
+      {yeniSiparisler.length > 0 && (
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3">
+          <span className="text-sm font-semibold text-emerald-800">
+            🔔 {yeniSiparisler.length} yeni sipariş geldi: {yeniSiparisler.join(', ')}
+          </span>
+          <button
+            onClick={() => setYeniSiparisler([])}
+            className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700">
+            Gördüm
+          </button>
+        </div>
+      )}
+
+      {iptalEdilenler.length > 0 && (
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-red-300 bg-red-50 px-4 py-3">
+          <span className="text-sm font-semibold text-red-800">
+            ⚠️ Müşteri siparişi iptal etti, hazırlamayın: {iptalEdilenler.join(', ')}
+          </span>
+          <button
+            onClick={() => setIptalEdilenler([])}
+            className="rounded-lg bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700">
+            Gördüm
+          </button>
+        </div>
+      )}
 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
       {loading ? (
@@ -109,7 +210,10 @@ export default function OrdersPage() {
                 const isOpen = expanded.has(o.id);
                 return (
                   <Fragment key={o.id}>
-                    <tr>
+                    <tr
+                      className={
+                        iptalEdilenler.includes(o.id) ? 'bg-red-50' : yeniSiparisler.includes(o.id) ? 'bg-emerald-50' : ''
+                      }>
                       <td className="px-4 py-2 font-medium text-gray-900">{o.id}</td>
                       <td className="px-4 py-2 text-gray-600">
                         <div>{o.musteri_adi || <span className="text-gray-300">-</span>}</div>
@@ -129,7 +233,7 @@ export default function OrdersPage() {
                       <td className="px-4 py-2">
                         <select
                           value={o.durum}
-                          disabled={updatingId === o.id}
+                          disabled={updatingId === o.id || o.durum === 'iptal'}
                           onChange={(e) => changeStatus(o, e.target.value as OrderStatus)}
                           className={`rounded-full border-0 px-2 py-1 text-xs font-semibold ${DURUM_META[o.durum].className}`}>
                           {DURUM_SIRASI.map((d) => (
@@ -169,6 +273,11 @@ export default function OrdersPage() {
                             {o.order_items.length === 0 && (
                               <span className="text-gray-400">Ürün bulunamadı.</span>
                             )}
+                          </div>
+                          <div className="mt-3 flex justify-end gap-6 border-t border-gray-200 pt-2 text-sm text-gray-600">
+                            <span>Ara toplam: {Number(o.ara_toplam).toFixed(2)} TL</span>
+                            <span>Teslimat: {Number(o.teslimat_ucreti).toFixed(2)} TL</span>
+                            <span className="font-semibold text-gray-800">Toplam: {Number(o.toplam).toFixed(2)} TL</span>
                           </div>
                         </td>
                       </tr>

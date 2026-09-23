@@ -3,15 +3,9 @@ import { router } from 'expo-router';
 import { FlatList, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useCart, type Order, type OrderStatus } from '@/context/cart-context';
+import { useCart, type Order } from '@/context/cart-context';
 import { odemeYontemiLabel } from '@/lib/odeme-yontemleri';
-
-const DURUM_META: Record<OrderStatus, { label: string; bg: string; color: string }> = {
-  alindi: { label: 'Sipariş Alındı', bg: '#e0edff', color: '#2563eb' },
-  hazirlaniyor: { label: 'Hazırlanıyor', bg: '#fff3e0', color: '#e67e22' },
-  yolda: { label: 'Yolda', bg: '#fdf2ff', color: '#a21caf' },
-  kapinda: { label: 'Kapında', bg: '#eefdf3', color: '#10995a' },
-};
+import { DURUM_META, tarihSaat } from '@/lib/siparis-durumu';
 
 export default function OrdersScreen() {
   const { orders } = useCart();
@@ -56,18 +50,14 @@ export default function OrdersScreen() {
 }
 
 function OrderCard({ order }: { order: Order }) {
-  const tarih = new Date(order.tarih).toLocaleDateString('tr-TR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const tarih = tarihSaat(order.tarih);
   const urunSayisi = order.items.reduce((sum, item) => sum + item.miktar, 0);
   const durumMeta = DURUM_META[order.durum];
 
   return (
-    <View className="rounded-3xl bg-white p-4 shadow-sm">
+    <Pressable
+      onPress={() => router.push({ pathname: '/siparis/[id]', params: { id: order.id } })}
+      className="rounded-3xl bg-white p-4 shadow-sm">
       <View className="flex-row items-center justify-between">
         <Text className="text-sm font-bold text-gray-900">{order.id}</Text>
         <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: durumMeta.bg }}>
@@ -100,6 +90,6 @@ function OrderCard({ order }: { order: Order }) {
         </Text>
         <Text className="text-base font-extrabold text-primary-600">{order.toplam} ₺</Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
