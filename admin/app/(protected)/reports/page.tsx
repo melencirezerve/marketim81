@@ -13,8 +13,21 @@ type Ozet = {
   brut_kar: number;
   teslimat_brut: number;
   teslimat_net: number;
+  kurye: number;
+  pos: number;
+  ambalaj: number;
+  katki_payi: number;
+  fire: number;
+  fire_maliyet_eksik: number;
+  fire_maliyet_tahmini: number;
+  genel_gider: number;
+  net_kar: number;
   maliyet_eksik_kalem: number;
+  maliyet_tahmini_kalem: number;
   kdv_eksik_kalem: number;
+  tahsilat_nakit: number;
+  tahsilat_kart: number;
+  tahsil_edilecek: number;
 };
 type UrunSatiri = {
   product_id: string | null;
@@ -25,10 +38,25 @@ type UrunSatiri = {
   maliyet: number;
   brut_kar: number;
   maliyet_eksik: boolean;
+  maliyet_tahmini: boolean;
   kdv_eksik: boolean;
 };
 type GunSatiri = { gun: string; siparis: number; ciro_net: number; brut_kar: number };
-type Rapor = { ozet: Ozet; urunler: UrunSatiri[]; gunluk: GunSatiri[] };
+type Rapor = {
+  ozet: Ozet;
+  urunler: UrunSatiri[];
+  gunluk: GunSatiri[];
+  gider_kategorileri: { kategori: string; tutar: number }[];
+  fire_sebepleri: { sebep: string; adet: number; tutar: number }[];
+};
+
+const FIRE_SEBEP_AD: Record<string, string> = {
+  skt: 'SKT geçti',
+  hasar: 'Hasarlı / bozuk',
+  kayip: 'Kayıp / çalıntı',
+  sayim_eksigi: 'Sayım eksiği',
+  diger: 'Diğer',
+};
 
 type Aralik = 'bugun' | 'yedi' | 'buay' | 'gecenay' | 'ozel';
 type Siralama = 'kar' | 'ciro' | 'marj';
@@ -198,37 +226,91 @@ export default function ReportsPage() {
               <Link href="/products" className="font-semibold underline">
                 Ürünler
               </Link>{' '}
-              sayfasından girin. Değerler sipariş anında dondurulduğu için yalnızca bundan sonraki siparişlere yansır.
+              sayfasından girin; girdiğiniz alış fiyatı geçmiş kayıtlarda da tahmini maliyet olarak kullanılır.
+            </div>
+          )}
+
+          {(o.maliyet_tahmini_kalem > 0 || o.fire_maliyet_tahmini > 0) && (
+            <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600">
+              ℹ️ {o.maliyet_tahmini_kalem > 0 && `${o.maliyet_tahmini_kalem} sipariş kalemi`}
+              {o.maliyet_tahmini_kalem > 0 && o.fire_maliyet_tahmini > 0 && ' ve '}
+              {o.fire_maliyet_tahmini > 0 && `${o.fire_maliyet_tahmini} fire kaydı`} alış fiyatı girilmeden önce
+              oluştuğu için ürünün <b>güncel</b> alış fiyatıyla (tahmini) hesaplandı.
             </div>
           )}
 
           <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
             <Kart baslik="Sipariş" deger={String(o.siparis_sayisi)} alt="iptaller hariç" />
             <Kart baslik="Ciro (KDV hariç)" deger={tl(o.ciro_net)} alt={`KDV dahil ${tl(o.ciro_brut)}`} />
-            <Kart baslik="Ürün maliyeti" deger={tl(o.maliyet)} alt="KDV hariç alış" />
             <Kart
               baslik="Brüt kâr"
               deger={tl(o.brut_kar)}
-              alt={`marj %${marj(o.brut_kar, o.ciro_net).toFixed(1)}`}
+              alt={`ürün marjı %${marj(o.brut_kar, o.ciro_net).toFixed(1)}`}
               renk={o.brut_kar < 0 ? 'red' : 'emerald'}
             />
-            <Kart baslik="Teslimat geliri" deger={tl(o.teslimat_net)} alt={`KDV dahil ${tl(o.teslimat_brut)}`} />
             <Kart
-              baslik="Brüt kâr + teslimat"
-              deger={tl(o.brut_kar + o.teslimat_net)}
-              alt="kurye, POS, ambalaj düşülmedi"
-              renk={o.brut_kar + o.teslimat_net < 0 ? 'red' : 'emerald'}
+              baslik="Net kâr"
+              deger={tl(o.net_kar)}
+              alt={`net marj %${marj(o.net_kar, o.ciro_net).toFixed(1)}`}
+              renk={o.net_kar < 0 ? 'red' : 'emerald'}
             />
-            <Kart
-              baslik="Sipariş başı kâr"
-              deger={tl(o.siparis_sayisi ? (o.brut_kar + o.teslimat_net) / o.siparis_sayisi : 0)}
-              alt="ortalama, teslimat dahil"
-            />
-            <Kart
-              baslik="Ortalama sepet"
-              deger={tl(o.siparis_sayisi ? o.ciro_brut / o.siparis_sayisi : 0)}
-              alt="KDV dahil"
-            />
+          </div>
+
+          <div className="mb-6 grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
+              <h2 className="mb-3 text-sm font-bold text-gray-700">Kâr dökümü (KDV hariç)</h2>
+              <Satir ad="Ürün satışları" tutar={o.ciro_net} />
+              <Satir ad="Ürün maliyeti" tutar={-o.maliyet} />
+              <Satir ad="Brüt kâr" tutar={o.brut_kar} kalin />
+              <Satir ad="Teslimat ücreti geliri" tutar={o.teslimat_net} />
+              <Satir ad="Kurye" tutar={-o.kurye} />
+              <Satir ad="POS komisyonu" tutar={-o.pos} />
+              <Satir ad="Ambalaj" tutar={-o.ambalaj} />
+              <Satir
+                ad="Sipariş katkı payı"
+                tutar={o.katki_payi}
+                alt={o.siparis_sayisi ? `sipariş başı ${tl(o.katki_payi / o.siparis_sayisi)}` : undefined}
+                kalin
+              />
+              <Satir ad="Fire / zayi" tutar={-o.fire} />
+              <Satir ad="Genel giderler" tutar={-o.genel_gider} />
+              <Satir ad="Net kâr" tutar={o.net_kar} kalin />
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-xl border border-gray-200 bg-white p-4">
+                <h2 className="mb-3 text-sm font-bold text-gray-700">Tahsilat (KDV dahil)</h2>
+                <Satir ad="Kapıda nakit (teslim edildi)" tutar={o.tahsilat_nakit} />
+                <Satir ad="Kapıda kart (teslim edildi)" tutar={o.tahsilat_kart} />
+                <Satir ad="Henüz teslim edilmedi" tutar={o.tahsil_edilecek} />
+                <p className="mt-2 text-xs text-gray-400">
+                  Nakit tutarı kuryeden teslim alınan parayla, kart tutarı POS gün sonu raporuyla karşılaştırın.
+                </p>
+              </div>
+
+              {rapor.gider_kategorileri.length > 0 && (
+                <div className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h2 className="mb-3 text-sm font-bold text-gray-700">Genel giderler</h2>
+                  {rapor.gider_kategorileri.map((g) => (
+                    <Satir key={g.kategori} ad={g.kategori} tutar={g.tutar} />
+                  ))}
+                </div>
+              )}
+
+              {rapor.fire_sebepleri.length > 0 && (
+                <div className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h2 className="mb-3 text-sm font-bold text-gray-700">Fire / zayi</h2>
+                  {rapor.fire_sebepleri.map((f) => (
+                    <Satir key={f.sebep} ad={`${FIRE_SEBEP_AD[f.sebep] ?? f.sebep} (${f.adet} adet)`} tutar={f.tutar} />
+                  ))}
+                  {o.fire_maliyet_eksik > 0 && (
+                    <p className="mt-2 text-xs text-amber-700">
+                      {o.fire_maliyet_eksik} fire kaydında ürün maliyeti bilinmediği için 0 sayıldı.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {rapor.gunluk.length > 1 && (
@@ -295,6 +377,13 @@ export default function ReportsPage() {
                             maliyet yok
                           </span>
                         )}
+                        {u.maliyet_tahmini && !u.maliyet_eksik && (
+                          <span
+                            title="Bazı satışlarda maliyet dondurulmamıştı; güncel alış fiyatı kullanıldı"
+                            className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500">
+                            tahmini
+                          </span>
+                        )}
                         {u.kdv_eksik && (
                           <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
                             KDV yok
@@ -350,6 +439,18 @@ function Kart({
         {deger}
       </div>
       {alt && <div className="mt-0.5 text-xs text-gray-400">{alt}</div>}
+    </div>
+  );
+}
+
+function Satir({ ad, tutar, alt, kalin }: { ad: string; tutar: number; alt?: string; kalin?: boolean }) {
+  return (
+    <div className={`flex items-baseline justify-between py-1 text-sm ${kalin ? 'border-t border-gray-200 font-bold' : ''}`}>
+      <span className={kalin ? 'text-gray-900' : 'text-gray-600'}>
+        {ad}
+        {alt && <span className="ml-2 text-xs font-normal text-gray-400">{alt}</span>}
+      </span>
+      <span className={tutar < 0 ? 'text-red-600' : kalin ? 'text-gray-900' : 'text-gray-800'}>{tl(tutar)}</span>
     </div>
   );
 }

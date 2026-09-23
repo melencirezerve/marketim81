@@ -121,6 +121,109 @@ export default function SettingsPage() {
           </button>
         </form>
       )}
+
+      <GiderAyarlariFormu />
     </div>
+  );
+}
+
+// Sipariş başı giderler admin'e özel gider_ayarlari tablosunda (market_ayarlari
+// herkese açık). Her siparişe oluştuğu anda dondurulur; değişiklik geçmişi etkilemez.
+function GiderAyarlariFormu() {
+  const [kurye, setKurye] = useState(0);
+  const [pos, setPos] = useState(0);
+  const [ambalaj, setAmbalaj] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from('gider_ayarlari')
+      .select('*')
+      .single()
+      .then(({ data, error: fetchError }) => {
+        if (fetchError) setError(fetchError.message);
+        else {
+          setKurye(Number(data.kurye_paket_ucreti));
+          setPos(Number(data.pos_komisyon_orani));
+          setAmbalaj(Number(data.ambalaj_maliyeti));
+        }
+        setLoading(false);
+      });
+  }, []);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    const { error: updateError } = await supabase
+      .from('gider_ayarlari')
+      .update({ kurye_paket_ucreti: kurye, pos_komisyon_orani: pos, ambalaj_maliyeti: ambalaj })
+      .eq('id', true);
+    if (updateError) setError(updateError.message);
+    else setSaved(true);
+    setSaving(false);
+  };
+
+  if (loading) return null;
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-10 max-w-md space-y-4 border-t border-gray-200 pt-6">
+      <div>
+        <h2 className="text-lg font-bold text-gray-900">Sipariş başı giderler</h2>
+        <p className="text-xs text-gray-500">
+          Kârlılık raporunda kullanılır, müşteriler görmez. Yeni değerler yalnızca bundan sonraki siparişlere uygulanır.
+        </p>
+      </div>
+      <div>
+        <label className="mb-1 block text-sm font-medium text-gray-700">Kurye ücreti (paket başı, TL)</label>
+        <input
+          type="number"
+          step="0.01"
+          min="0"
+          value={kurye}
+          onChange={(e) => setKurye(Number(e.target.value))}
+          required
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+        />
+      </div>
+      <div>
+        <label className="mb-1 block text-sm font-medium text-gray-700">POS komisyonu (%)</label>
+        <input
+          type="number"
+          step="0.01"
+          min="0"
+          max="100"
+          value={pos}
+          onChange={(e) => setPos(Number(e.target.value))}
+          required
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+        />
+        <p className="mt-1 text-xs text-gray-400">Yalnızca kapıda kartla ödenen siparişlerde, çekilen tutar üzerinden.</p>
+      </div>
+      <div>
+        <label className="mb-1 block text-sm font-medium text-gray-700">Ambalaj (sipariş başı, TL)</label>
+        <input
+          type="number"
+          step="0.01"
+          min="0"
+          value={ambalaj}
+          onChange={(e) => setAmbalaj(Number(e.target.value))}
+          required
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+        />
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {saved && <p className="text-sm text-emerald-700">Kaydedildi.</p>}
+      <button
+        type="submit"
+        disabled={saving}
+        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+        {saving ? 'Kaydediliyor...' : 'Giderleri Kaydet'}
+      </button>
+    </form>
   );
 }

@@ -8,7 +8,7 @@ import { basariSesi, hataSesi } from '@/lib/ses';
 import { supabase } from '@/lib/supabase';
 import type { Product } from '@/lib/types';
 
-type Mod = 'ekle' | 'sayim';
+type Mod = 'ekle' | 'sayim' | 'fire';
 // birimAlis: mal kabulde girilen KDV hariç birim alış fiyatı ('' = girilmedi, maliyet değişmez).
 type Satir = { product: Product; miktar: number; birimAlis: string };
 
@@ -24,7 +24,20 @@ const MOD_BILGI: Record<Mod, { baslik: string; aciklama: string; sutun: string }
     aciklama: 'Raftaki ürünleri tek tek okutun veya adedi yazın. Kaydedince stok sayılan adede eşitlenir.',
     sutun: 'Sayılan',
   },
+  fire: {
+    baslik: 'Fire / Zayi',
+    aciklama:
+      'Son kullanma tarihi geçen, hasarlı ya da kaybolan ürünleri okutun. Stoktan düşülür ve maliyeti kârlılık raporunda gider olarak görünür.',
+    sutun: 'Fire',
+  },
 };
+
+const FIRE_SEBEPLERI = [
+  { id: 'skt', ad: 'Son kullanma tarihi geçti' },
+  { id: 'hasar', ad: 'Hasarlı / bozuk' },
+  { id: 'kayip', ad: 'Kayıp / çalıntı' },
+  { id: 'diger', ad: 'Diğer' },
+];
 
 export default function StockPage() {
   const [mod, setMod] = useState<Mod>('ekle');
@@ -33,6 +46,8 @@ export default function StockPage() {
   const [satirlar, setSatirlar] = useState<Satir[]>([]);
   const [uyari, setUyari] = useState<{ tip: 'hata' | 'basari'; mesaj: string; barkod?: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [fireSebebi, setFireSebebi] = useState(FIRE_SEBEPLERI[0].id);
+  const [fireAciklama, setFireAciklama] = useState('');
 
   const urunleriYukle = async () => {
     const [{ data }, { data: maliyetData }] = await Promise.all([
@@ -84,16 +99,28 @@ export default function StockPage() {
   };
 
   const kaydet = async () => {
+    const adet = satirlar.reduce((t, s) => t + s.miktar, 0);
     const ozet =
       mod === 'ekle'
-        ? `${satirlar.length} ürünün stoğuna toplam ${satirlar.reduce((t, s) => t + s.miktar, 0)} adet eklenecek.`
-        : `${satirlar.length} ürünün stoğu sayılan adede eşitlenecek.`;
+        ? `${satirlar.length} ürünün stoğuna toplam ${adet} adet eklenecek.`
+        : mod === 'fire'
+          ? `${satirlar.length} üründen toplam ${adet} adet fire olarak stoktan düşülecek.`
+          : `${satirlar.length} ürünün stoğu sayılan adede eşitlenecek; eksik çıkanlar "sayım eksiği" firesi olarak kaydedilir.`;
     if (!window.confirm(`${ozet} Onaylıyor musunuz?`)) return;
 
     setSaving(true);
-    // Mal kabul maliyeti de günceller (mal_kabul), sayım yalnızca stoğu eşitler (stok_guncelle).
+    // Mal kabul maliyeti de günceller (mal_kabul), fire stoktan düşüp kaydeder (fire_kaydet),
+    // sayım stoğu eşitler ve eksiği fire yazar (stok_guncelle).
     const { error } =
-      mod === 'ekle'
+      mod === 'fire'
+        ? await supabase.rpc('fire_kaydet', {
+            p_kalemler: satirlar
+              .filter((s) => s.miktar > 0)
+              .map((s) => ({ product_id: s.product.id, miktar: s.miktar })),
+            p_sebep: fireSebebi,
+            p_aciklama: fireAciklama.trim(),
+          })
+        : mod === 'ekle'
         ? await supabase.rpc('mal_kabul', {
             p_kalemler: satirlar
               .filter((s) => s.miktar > 0)
@@ -114,6 +141,7 @@ export default function StockPage() {
       return;
     }
     setSatirlar([]);
+    setFireAciklama('');
     setUyari({ tip: 'basari', mesaj: 'Stoklar güncellendi.' });
     urunleriYukle();
   };
@@ -137,6 +165,27 @@ export default function StockPage() {
         ))}
       </div>
       <p className="mb-3 text-sm text-gray-500">{bilgi.aciklama}</p>
+
+      {mod === 'fire' && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          <select
+            value={fireSebebi}
+            onChange={(e) => setFireSebebi(e.target.value)}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+            {FIRE_SEBEPLERI.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.ad}
+              </option>
+            ))}
+          </select>
+          <input
+            value={fireAciklama}
+            onChange={(e) => setFireAciklama(e.target.value)}
+            placeholder="Açıklama (ops.)"
+            className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          />
+        </div>
+      )}
 
       <BarkodGiris onScan={barkodOkutuldu} />
 
@@ -177,7 +226,8 @@ export default function StockPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {satirlar.map(({ product, miktar, birimAlis }) => {
-                const yeniStok = mod === 'ekle' ? product.stok + miktar : miktar;
+                const yeniStok =
+                  mod === 'ekle' ? product.stok + miktar : mod === 'fire' ? product.stok - miktar : miktar;
                 return (
                   <tr key={product.id}>
                     <td className="px-4 py-2 font-medium text-gray-900">{product.ad}</td>
