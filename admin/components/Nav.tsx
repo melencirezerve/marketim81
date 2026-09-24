@@ -26,6 +26,9 @@ export function Nav() {
           <Link href="/orders" className={linkClass('/orders')}>
             Siparişler
           </Link>
+          <Link href="/couriers" className={linkClass('/couriers')}>
+            Kuryeler
+          </Link>
           <Link href="/products" className={linkClass('/products')}>
             Ürünler
           </Link>

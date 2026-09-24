@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { yeniSiparisSesi } from '@/lib/ses';
 import { supabase } from '@/lib/supabase';
-import type { OdemeYontemi, OrderStatus, OrderWithItems } from '@/lib/types';
+import type { Kurye, OdemeYontemi, OrderStatus, OrderWithItems } from '@/lib/types';
 
 const ODEME_LABEL: Record<OdemeYontemi, string> = {
   kapida_nakit: 'Kapıda Nakit',
@@ -25,6 +25,7 @@ const SIPARIS_SORGUSU = '*, order_items(*)';
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
+  const [kuryeler, setKuryeler] = useState<Kurye[]>([]);
   const [statusFilter, setStatusFilter] = useState<OrderStatus | ''>('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -42,6 +43,8 @@ export default function OrdersPage() {
       .order('created_at', { ascending: false });
     if (fetchError) setError(fetchError.message);
     else setOrders((data as OrderWithItems[]) ?? []);
+    const { data: k } = await supabase.from('kuryeler').select('*').order('ad');
+    setKuryeler((k as Kurye[]) ?? []);
     setLoading(false);
   };
 
@@ -126,6 +129,16 @@ export default function OrdersPage() {
       setError(updateError.message);
     }
     else setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, durum } : o)));
+    setUpdatingId(null);
+  };
+
+  const kuryeAta = async (order: OrderWithItems, kuryeId: string) => {
+    setUpdatingId(order.id);
+    setError(null);
+    const kurye_id = kuryeId || null;
+    const { error: updateError } = await supabase.from('orders').update({ kurye_id }).eq('id', order.id);
+    if (updateError) setError(updateError.message);
+    else setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, kurye_id } : o)));
     setUpdatingId(null);
   };
 
@@ -227,7 +240,14 @@ export default function OrdersPage() {
                       </td>
                       <td className="px-4 py-2 text-gray-600">{urunSayisi} ürün</td>
                       <td className="px-4 py-2 text-gray-600">{Number(o.toplam).toFixed(2)} TL</td>
-                      <td className="px-4 py-2 text-gray-600">{ODEME_LABEL[o.odeme_yontemi] ?? o.odeme_yontemi}</td>
+                      <td className="px-4 py-2 text-gray-600">
+                        {ODEME_LABEL[o.odeme_yontemi] ?? o.odeme_yontemi}
+                        {o.odeme_kapida_degisti && (
+                          <div className="text-[11px] text-amber-600" title="Kurye teslimde ödeme yöntemini değiştirdi">
+                            kapıda değişti
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-2">
                         <select
                           value={o.durum}
@@ -240,6 +260,25 @@ export default function OrdersPage() {
                             </option>
                           ))}
                         </select>
+                        {(kuryeler.length > 0 || o.kurye_id) && (
+                          <select
+                            value={o.kurye_id ?? ''}
+                            disabled={
+                              updatingId === o.id || o.durum === 'iptal' || o.durum === 'kapinda' || !!o.mutabakat_id
+                            }
+                            onChange={(e) => kuryeAta(o, e.target.value)}
+                            title="Kurye"
+                            className="mt-1 block max-w-[9rem] rounded-lg border border-gray-200 px-1 py-0.5 text-xs text-gray-600">
+                            <option value="">Kurye yok</option>
+                            {kuryeler
+                              .filter((k) => k.aktif || k.id === o.kurye_id)
+                              .map((k) => (
+                                <option key={k.id} value={k.id}>
+                                  🛵 {k.ad}
+                                </option>
+                              ))}
+                          </select>
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-2 text-right">
                         {o.toplandi_at ? (

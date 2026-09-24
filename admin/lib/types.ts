@@ -66,7 +66,36 @@ export type OrderWithItems = {
   indirim_tutari: number;
   toplam: number;
   toplandi_at: string | null;
+  kurye_id: string | null;
+  yola_cikti_at: string | null;
+  teslim_edildi_at: string | null;
+  odeme_kapida_degisti: boolean;
+  mutabakat_id: string | null;
   created_at: string;
   updated_at: string;
   order_items: OrderItem[];
+};
+
+export type Kurye = {
+  id: string;
+  ad: string;
+  telefon: string;
+  user_id: string | null;
+  aktif: boolean;
+  created_at: string;
+};
+
+export type KuryeMutabakati = {
+  id: string;
+  kurye_id: string;
+  siparis_sayisi: number;
+  nakit_tahsilat: number;
+  kart_tahsilat: number;
+  kurye_ucreti: number;
+  ucret_nakitten_alindi: boolean;
+  beklenen_nakit: number;
+  teslim_edilen_nakit: number;
+  fark: number;
+  aciklama: string;
+  created_at: string;
 };

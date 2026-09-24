@@ -10,8 +10,17 @@ export default function ProtectedLayout({ children }: { children: ReactNode }) {
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) router.replace('/login');
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session) {
+        router.replace('/login');
+        return;
+      }
+      // Kurye de aynı alan adında SMS koduyla oturum açıyor; admin olmayan herkes kurye ekranına.
+      const { data: profil } = await supabase.from('profiles').select('role').eq('id', data.session.user.id).single();
+      if (profil?.role !== 'admin') {
+        router.replace('/kurye');
+        return;
+      }
       setChecked(true);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
